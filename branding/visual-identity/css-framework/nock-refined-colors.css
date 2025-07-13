@@ -1,0 +1,362 @@
+/* NOCK= REFINED COLOR SYSTEM */
+/* Professional color palette inspired by Axiom/Hyperliquid aesthetics */
+/* 80% Clean Minimalist + 20% Strategic Tech Accents */
+
+:root {
+  /* PRIMARY COLORS - MONOCHROME BASE (AXIOM-INSPIRED) */
+  --nock-black: #000000;           /* Pure computational black */
+  --nock-white: #ffffff;           /* Pure computational white */
+  --nock-gray-900: #0a0a0a;        /* Deep background - primary */
+  --nock-gray-800: #1a1a1a;        /* Card backgrounds - secondary */
+  --nock-gray-700: #2a2a2a;        /* Borders and dividers */
+  --nock-gray-600: #3a3a3a;        /* Disabled states */
+  --nock-gray-500: #6a6a6a;        /* Placeholder text */
+  --nock-gray-400: #9a9a9a;        /* Secondary text */
+  --nock-gray-300: #cacaca;        /* Primary text on dark */
+  --nock-gray-200: #e0e0e0;        /* Light backgrounds */
+  --nock-gray-100: #f0f0f0;        /* Off-white */
+
+  /* SIGNATURE ACCENTS - PROFESSIONAL BALANCE */
+  --nock-yield-green: #00ff88;     /* Primary brand accent - yield success */
+  --nock-yield-green-dark: #00cc6a; /* Darker variant for gradients */
+  --nock-yield-green-light: #33ffaa; /* Lighter variant for highlights */
+  --nock-electric-blue: #00d4ff;   /* Secondary accent - information */
+  --nock-warm-orange: #ff6b35;     /* Tertiary accent - warnings/energy */
+
+  /* FUNCTIONAL COLORS - HYPERLIQUID-INSPIRED */
+  --nock-success: #00ff88;         /* Success states = yield green */
+  --nock-warning: #ffaa00;         /* Warning states - professional amber */
+  --nock-error: #ff4444;           /* Error states - clear red */
+  --nock-info: #0088ff;            /* Information states - clear blue */
+
+  /* REFINED GRADIENTS - SUBTLE, PROFESSIONAL */
+  --nock-primary-gradient: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+  --nock-yield-gradient: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
+  --nock-accent-gradient: linear-gradient(135deg, #00d4ff 0%, #ff6b35 100%);
+  --nock-surface-gradient: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+  --nock-glass-gradient: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+
+  /* OPACITY VARIANTS FOR STRATEGIC ACCENTS */
+  --nock-yield-green-90: rgba(0, 255, 136, 0.9);
+  --nock-yield-green-80: rgba(0, 255, 136, 0.8);
+  --nock-yield-green-60: rgba(0, 255, 136, 0.6);
+  --nock-yield-green-40: rgba(0, 255, 136, 0.4);
+  --nock-yield-green-20: rgba(0, 255, 136, 0.2);
+  --nock-yield-green-10: rgba(0, 255, 136, 0.1);
+  --nock-yield-green-05: rgba(0, 255, 136, 0.05);
+
+  /* GLASS MORPHISM VARIABLES - REFINED */
+  --nock-glass-bg-primary: rgba(26, 26, 26, 0.05);
+  --nock-glass-bg-secondary: rgba(26, 26, 26, 0.08);
+  --nock-glass-bg-tertiary: rgba(26, 26, 26, 0.12);
+  --nock-glass-bg-hover: rgba(0, 255, 136, 0.08);
+  --nock-glass-bg-active: rgba(0, 255, 136, 0.12);
+  
+  --nock-glass-border: rgba(255, 255, 255, 0.1);
+  --nock-glass-border-hover: rgba(0, 255, 136, 0.3);
+  --nock-glass-border-focus: rgba(0, 255, 136, 0.5);
+  
+  --nock-glass-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  --nock-glass-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --nock-glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.4);
+
+  /* REFINED SHADOWS - PROFESSIONAL DEPTH */
+  --nock-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --nock-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --nock-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.15);
+  --nock-shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.2);
+  --nock-shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.25);
+  --nock-shadow-2xl: 0 24px 48px rgba(0, 0, 0, 0.3);
+
+  /* STRATEGIC GLOW EFFECTS - 20% TECH ACCENTS */
+  --nock-glow-yield: 0 0 20px rgba(0, 255, 136, 0.3);
+  --nock-glow-yield-intense: 0 0 40px rgba(0, 255, 136, 0.5);
+  --nock-glow-blue: 0 0 20px rgba(0, 212, 255, 0.3);
+  --nock-glow-orange: 0 0 20px rgba(255, 107, 53, 0.3);
+
+  /* TRANSITION VARIABLES - SMOOTH PROFESSIONAL ANIMATIONS */
+  --nock-transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --nock-transition-normal: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --nock-transition-slow: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* REFINED COLOR UTILITY CLASSES */
+
+/* BACKGROUND COLORS */
+.nock-bg-black { background-color: var(--nock-black); }
+.nock-bg-white { background-color: var(--nock-white); }
+.nock-bg-gray-900 { background-color: var(--nock-gray-900); }
+.nock-bg-gray-800 { background-color: var(--nock-gray-800); }
+.nock-bg-gray-700 { background-color: var(--nock-gray-700); }
+.nock-bg-gray-300 { background-color: var(--nock-gray-300); }
+
+.nock-bg-yield { background-color: var(--nock-yield-green); }
+.nock-bg-blue { background-color: var(--nock-electric-blue); }
+.nock-bg-orange { background-color: var(--nock-warm-orange); }
+
+/* GRADIENT BACKGROUNDS */
+.nock-bg-primary-gradient { background: var(--nock-primary-gradient); }
+.nock-bg-yield-gradient { background: var(--nock-yield-gradient); }
+.nock-bg-accent-gradient { background: var(--nock-accent-gradient); }
+.nock-bg-surface-gradient { background: var(--nock-surface-gradient); }
+
+/* TEXT COLORS */
+.nock-text-white { color: var(--nock-white); }
+.nock-text-gray-300 { color: var(--nock-gray-300); }
+.nock-text-gray-400 { color: var(--nock-gray-400); }
+.nock-text-gray-500 { color: var(--nock-gray-500); }
+
+.nock-text-yield { color: var(--nock-yield-green); }
+.nock-text-blue { color: var(--nock-electric-blue); }
+.nock-text-orange { color: var(--nock-warm-orange); }
+
+.nock-text-success { color: var(--nock-success); }
+.nock-text-warning { color: var(--nock-warning); }
+.nock-text-error { color: var(--nock-error); }
+.nock-text-info { color: var(--nock-info); }
+
+/* BORDER COLORS */
+.nock-border-gray-700 { border-color: var(--nock-gray-700); }
+.nock-border-gray-600 { border-color: var(--nock-gray-600); }
+.nock-border-yield { border-color: var(--nock-yield-green); }
+.nock-border-blue { border-color: var(--nock-electric-blue); }
+
+/* REFINED GRADIENT TEXT EFFECTS */
+.nock-gradient-text-yield {
+  background: linear-gradient(135deg, var(--nock-white) 0%, var(--nock-yield-green) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+}
+
+.nock-gradient-text-accent {
+  background: var(--nock-accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+}
+
+/* PROFESSIONAL GLASS MORPHISM EFFECTS */
+.nock-glass-primary {
+  background: var(--nock-glass-bg-primary);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--nock-glass-border);
+  border-radius: 8px;
+}
+
+.nock-glass-secondary {
+  background: var(--nock-glass-bg-secondary);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--nock-glass-border);
+  border-radius: 8px;
+}
+
+.nock-glass-card {
+  background: var(--nock-glass-bg-tertiary);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 1px solid var(--nock-glass-border);
+  border-radius: 12px;
+  box-shadow: var(--nock-glass-shadow);
+  transition: var(--nock-transition-normal);
+}
+
+.nock-glass-card:hover {
+  background: var(--nock-glass-bg-hover);
+  border-color: var(--nock-glass-border-hover);
+  box-shadow: var(--nock-glass-shadow-lg);
+  transform: translateY(-2px);
+}
+
+/* STRATEGIC GLOW EFFECTS (20% TECH ACCENTS) */
+.nock-glow-yield {
+  box-shadow: var(--nock-glow-yield);
+}
+
+.nock-glow-yield-hover:hover {
+  box-shadow: var(--nock-glow-yield-intense);
+  transition: var(--nock-transition-normal);
+}
+
+.nock-glow-blue {
+  box-shadow: var(--nock-glow-blue);
+}
+
+.nock-glow-orange {
+  box-shadow: var(--nock-glow-orange);
+}
+
+/* REFINED STATUS INDICATORS */
+.nock-status-online {
+  background: var(--nock-yield-green-10);
+  border: 1px solid var(--nock-yield-green);
+  color: var(--nock-yield-green);
+  border-radius: 20px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nock-status-online::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: var(--nock-yield-green);
+  border-radius: 50%;
+  animation: nock-pulse-subtle 2s infinite;
+}
+
+.nock-status-warning {
+  background: rgba(255, 170, 0, 0.1);
+  border: 1px solid var(--nock-warning);
+  color: var(--nock-warning);
+  border-radius: 20px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.nock-status-error {
+  background: rgba(255, 68, 68, 0.1);
+  border: 1px solid var(--nock-error);
+  color: var(--nock-error);
+  border-radius: 20px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* REFINED INTERACTIVE STATES */
+.nock-interactive {
+  transition: var(--nock-transition-normal);
+  cursor: pointer;
+}
+
+.nock-interactive:hover {
+  transform: translateY(-1px);
+}
+
+.nock-interactive:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.nock-interactive-card {
+  transition: var(--nock-transition-normal);
+  cursor: pointer;
+}
+
+.nock-interactive-card:hover {
+  border-color: var(--nock-yield-green);
+  box-shadow: 0 4px 20px var(--nock-yield-green-10);
+  transform: translateY(-2px);
+}
+
+/* SUBTLE ANIMATIONS - PROFESSIONAL POLISH */
+@keyframes nock-pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes nock-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes nock-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ANIMATION UTILITY CLASSES */
+.nock-animate-fade-in {
+  animation: nock-fade-in 0.5s ease-out;
+}
+
+.nock-animate-scale-in {
+  animation: nock-scale-in 0.3s ease-out;
+}
+
+.nock-animate-pulse {
+  animation: nock-pulse-subtle 2s infinite;
+}
+
+/* REFINED FOCUS STATES - ACCESSIBILITY */
+.nock-focus:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--nock-yield-green-20);
+  border-color: var(--nock-yield-green);
+}
+
+.nock-focus-ring:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--nock-yield-green-40);
+}
+
+/* HIGH CONTRAST MODE SUPPORT */
+@media (prefers-contrast: high) {
+  :root {
+    --nock-glass-border: rgba(255, 255, 255, 0.3);
+    --nock-glass-border-hover: rgba(0, 255, 136, 0.6);
+  }
+  
+  .nock-glass-card:hover {
+    border-width: 2px;
+  }
+}
+
+/* REDUCED MOTION SUPPORT */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .nock-interactive:hover {
+    transform: none;
+  }
+  
+  .nock-interactive-card:hover {
+    transform: none;
+  }
+}
+
+/* PRINT STYLES */
+@media print {
+  :root {
+    --nock-yield-green: #000000;
+    --nock-white: #ffffff;
+    --nock-gray-300: #333333;
+  }
+  
+  .nock-glass-card {
+    background: #ffffff;
+    border: 1px solid #cccccc;
+    box-shadow: none;
+  }
+}

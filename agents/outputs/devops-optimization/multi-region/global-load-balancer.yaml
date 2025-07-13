@@ -1,0 +1,589 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: global-load-balancer-config
+  namespace: ingress-system
+data:
+  nginx.conf: |
+    user nginx;
+    worker_processes auto;
+    error_log /var/log/nginx/error.log warn;
+    pid /var/run/nginx.pid;
+    
+    events {
+        worker_connections 4096;
+        use epoll;
+        multi_accept on;
+    }
+    
+    http {
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
+        
+        # Logging format
+        log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                       '$status $body_bytes_sent "$http_referer" '
+                       '"$http_user_agent" "$http_x_forwarded_for"';
+        
+        log_format json_combined escape=json
+        '{'
+          '"time_local":"$time_local",'
+          '"remote_addr":"$remote_addr",'
+          '"remote_user":"$remote_user",'
+          '"request":"$request",'
+          '"status": "$status",'
+          '"body_bytes_sent":"$body_bytes_sent",'
+          '"request_time":"$request_time",'
+          '"http_referrer":"$http_referer",'
+          '"http_user_agent":"$http_user_agent",'
+          '"upstream_addr":"$upstream_addr",'
+          '"upstream_status":"$upstream_status",'
+          '"upstream_response_time":"$upstream_response_time",'
+          '"upstream_connect_time":"$upstream_connect_time",'
+          '"upstream_header_time":"$upstream_header_time"'
+        '}';
+        
+        access_log /var/log/nginx/access.log json_combined;
+        
+        # Performance optimizations
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+        keepalive_timeout 65;
+        types_hash_max_size 2048;
+        
+        # Gzip compression
+        gzip on;
+        gzip_vary on;
+        gzip_min_length 1000;
+        gzip_comp_level 6;
+        gzip_types
+            application/atom+xml
+            application/javascript
+            application/json
+            application/rss+xml
+            application/vnd.ms-fontobject
+            application/x-font-ttf
+            application/x-web-app-manifest+json
+            application/xhtml+xml
+            application/xml
+            font/opentype
+            image/svg+xml
+            image/x-icon
+            text/css
+            text/plain
+            text/x-component;
+        
+        # Rate limiting
+        limit_req_zone $binary_remote_addr zone=global:10m rate=1000r/s;
+        limit_req_zone $binary_remote_addr zone=api:10m rate=500r/s;
+        
+        # Connection limiting
+        limit_conn_zone $binary_remote_addr zone=addr:10m;
+        
+        # SSL configuration
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+        ssl_prefer_server_ciphers off;
+        ssl_session_cache shared:SSL:10m;
+        ssl_session_timeout 10m;
+        ssl_session_tickets off;
+        ssl_stapling on;
+        ssl_stapling_verify on;
+        
+        # Security headers
+        add_header X-Frame-Options DENY;
+        add_header X-Content-Type-Options nosniff;
+        add_header X-XSS-Protection "1; mode=block";
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'";
+        
+        # Health check endpoint
+        location /health {
+            access_log off;
+            return 200 "healthy\n";
+            add_header Content-Type text/plain;
+        }
+        
+        # Upstream definitions for multiple regions
+        upstream us_west_cluster {
+            least_conn;
+            server us-west-2.api.nockchain.com:443 max_fails=3 fail_timeout=30s weight=100;
+            server us-west-2.api.nockchain.com:443 max_fails=3 fail_timeout=30s weight=100 backup;
+            keepalive 32;
+        }
+        
+        upstream us_east_cluster {
+            least_conn;
+            server us-east-1.api.nockchain.com:443 max_fails=3 fail_timeout=30s weight=100;
+            server us-east-1.api.nockchain.com:443 max_fails=3 fail_timeout=30s weight=100 backup;
+            keepalive 32;
+        }
+        
+        upstream eu_west_cluster {
+            least_conn;
+            server eu-west-1.api.nockchain.com:443 max_fails=3 fail_timeout=30s weight=100;
+            server eu-west-1.api.nockchain.com:443 max_fails=3 fail_timeout=30s weight=100 backup;
+            keepalive 32;
+        }
+        
+        upstream ap_southeast_cluster {
+            least_conn;
+            server ap-southeast-1.api.nockchain.com:443 max_fails=3 fail_timeout=30s weight=100;
+            server ap-southeast-1.api.nockchain.com:443 max_fails=3 fail_timeout=30s weight=100 backup;
+            keepalive 32;
+        }
+        
+        # GeoIP-based routing
+        geo $closest_region {
+            default us_west_cluster;
+            
+            # US West Coast
+            include /etc/nginx/geoip/us_west.conf;
+            
+            # US East Coast
+            include /etc/nginx/geoip/us_east.conf;
+            
+            # Europe
+            include /etc/nginx/geoip/eu_west.conf;
+            
+            # Asia Pacific
+            include /etc/nginx/geoip/ap_southeast.conf;
+        }
+        
+        # Map for backend selection with failover
+        map $closest_region $backend {
+            default us_west_cluster;
+            us_west_cluster us_west_cluster;
+            us_east_cluster us_east_cluster;
+            eu_west_cluster eu_west_cluster;
+            ap_southeast_cluster ap_southeast_cluster;
+        }
+        
+        # Main server block
+        server {
+            listen 80;
+            server_name api.nockchain.com optimizer.nockchain.com;
+            return 301 https://$server_name$request_uri;
+        }
+        
+        server {
+            listen 443 ssl http2;
+            server_name api.nockchain.com optimizer.nockchain.com;
+            
+            ssl_certificate /etc/nginx/ssl/tls.crt;
+            ssl_certificate_key /etc/nginx/ssl/tls.key;
+            
+            # Rate limiting
+            limit_req zone=global burst=20 nodelay;
+            limit_conn addr 100;
+            
+            # CORS headers
+            add_header Access-Control-Allow-Origin "*" always;
+            add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
+            add_header Access-Control-Allow-Headers "DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization" always;
+            add_header Access-Control-Expose-Headers "Content-Length,Content-Range" always;
+            
+            # Handle preflight requests
+            if ($request_method = 'OPTIONS') {
+                add_header Access-Control-Allow-Origin "*";
+                add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS";
+                add_header Access-Control-Allow-Headers "DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization";
+                add_header Access-Control-Max-Age 1728000;
+                add_header Content-Type 'text/plain; charset=utf-8';
+                add_header Content-Length 0;
+                return 204;
+            }
+            
+            # Main proxy location
+            location / {
+                proxy_pass https://$backend;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection "upgrade";
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_set_header X-Forwarded-Host $host;
+                proxy_set_header X-Forwarded-Port $server_port;
+                proxy_set_header X-Region $closest_region;
+                
+                # Timeouts
+                proxy_connect_timeout 30s;
+                proxy_send_timeout 60s;
+                proxy_read_timeout 60s;
+                
+                # Buffering
+                proxy_buffering on;
+                proxy_buffer_size 4k;
+                proxy_buffers 8 4k;
+                proxy_busy_buffers_size 8k;
+                
+                # Retry configuration
+                proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+                proxy_next_upstream_tries 3;
+                proxy_next_upstream_timeout 30s;
+                
+                # Circuit breaker
+                error_page 502 503 504 = @fallback;
+            }
+            
+            # API-specific location with stricter rate limiting
+            location /api/ {
+                limit_req zone=api burst=10 nodelay;
+                
+                proxy_pass https://$backend;
+                proxy_http_version 1.1;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_set_header X-Region $closest_region;
+                
+                # API-specific timeouts
+                proxy_connect_timeout 10s;
+                proxy_send_timeout 30s;
+                proxy_read_timeout 30s;
+                
+                # Caching for GET requests
+                proxy_cache api_cache;
+                proxy_cache_valid 200 302 5m;
+                proxy_cache_valid 404 1m;
+                proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+                proxy_cache_background_update on;
+                proxy_cache_lock on;
+                
+                error_page 502 503 504 = @fallback;
+            }
+            
+            # Metrics endpoint
+            location /metrics {
+                proxy_pass https://$backend;
+                proxy_http_version 1.1;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                
+                # Restrict access to monitoring systems
+                allow 10.0.0.0/8;
+                allow 172.16.0.0/12;
+                allow 192.168.0.0/16;
+                deny all;
+            }
+            
+            # Fallback location for circuit breaker
+            location @fallback {
+                return 503 '{"error": "Service temporarily unavailable", "code": 503}';
+                add_header Content-Type application/json;
+            }
+        }
+        
+        # Cache configuration
+        proxy_cache_path /var/cache/nginx/api levels=1:2 keys_zone=api_cache:10m max_size=1g inactive=60m use_temp_path=off;
+        
+        # Status page for monitoring
+        server {
+            listen 8080;
+            server_name localhost;
+            
+            location /nginx_status {
+                stub_status on;
+                access_log off;
+                allow 127.0.0.1;
+                allow 10.0.0.0/8;
+                deny all;
+            }
+            
+            location /health {
+                access_log off;
+                return 200 "healthy\n";
+                add_header Content-Type text/plain;
+            }
+        }
+    }
+    
+    # Stream configuration for TCP/UDP load balancing
+    stream {
+        upstream redis_cluster {
+            least_conn;
+            server us-west-2.redis.nockchain.com:6379 max_fails=3 fail_timeout=30s;
+            server us-east-1.redis.nockchain.com:6379 max_fails=3 fail_timeout=30s;
+            server eu-west-1.redis.nockchain.com:6379 max_fails=3 fail_timeout=30s;
+        }
+        
+        upstream postgres_cluster {
+            least_conn;
+            server us-west-2.postgres.nockchain.com:5432 max_fails=3 fail_timeout=30s;
+            server us-east-1.postgres.nockchain.com:5432 max_fails=3 fail_timeout=30s;
+            server eu-west-1.postgres.nockchain.com:5432 max_fails=3 fail_timeout=30s;
+        }
+        
+        server {
+            listen 6379;
+            proxy_pass redis_cluster;
+            proxy_timeout 1s;
+            proxy_responses 1;
+        }
+        
+        server {
+            listen 5432;
+            proxy_pass postgres_cluster;
+            proxy_timeout 1s;
+            proxy_responses 1;
+        }
+    }
+  
+  us_west.conf: |
+    # US West Coast IP ranges
+    # Alaska
+    207.244.0.0/16 us_west_cluster;
+    # California
+    4.15.0.0/16 us_west_cluster;
+    4.16.0.0/14 us_west_cluster;
+    # Oregon
+    204.251.0.0/16 us_west_cluster;
+    # Washington
+    207.46.0.0/16 us_west_cluster;
+    # Hawaii
+    204.152.0.0/16 us_west_cluster;
+    # Nevada
+    208.117.0.0/16 us_west_cluster;
+    
+  us_east.conf: |
+    # US East Coast IP ranges
+    # New York
+    69.46.0.0/16 us_east_cluster;
+    # Florida
+    204.15.0.0/16 us_east_cluster;
+    # Georgia
+    170.140.0.0/16 us_east_cluster;
+    # Virginia
+    63.118.0.0/16 us_east_cluster;
+    # North Carolina
+    152.19.0.0/16 us_east_cluster;
+    
+  eu_west.conf: |
+    # European IP ranges
+    # United Kingdom
+    81.0.0.0/8 eu_west_cluster;
+    # Germany
+    85.0.0.0/8 eu_west_cluster;
+    # France
+    82.0.0.0/8 eu_west_cluster;
+    # Netherlands
+    145.0.0.0/8 eu_west_cluster;
+    # Spain
+    83.0.0.0/8 eu_west_cluster;
+    
+  ap_southeast.conf: |
+    # Asia Pacific IP ranges
+    # Singapore
+    202.156.0.0/16 ap_southeast_cluster;
+    # Japan
+    210.0.0.0/8 ap_southeast_cluster;
+    # Australia
+    203.0.0.0/8 ap_southeast_cluster;
+    # Hong Kong
+    218.0.0.0/8 ap_southeast_cluster;
+    # South Korea
+    211.0.0.0/8 ap_southeast_cluster;
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: global-load-balancer
+  namespace: ingress-system
+  labels:
+    app: global-load-balancer
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: global-load-balancer
+  template:
+    metadata:
+      labels:
+        app: global-load-balancer
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+        prometheus.io/path: "/metrics"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - global-load-balancer
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: nginx
+        image: nginx:1.25.1-alpine
+        ports:
+        - containerPort: 80
+          name: http
+        - containerPort: 443
+          name: https
+        - containerPort: 8080
+          name: status
+        - containerPort: 6379
+          name: redis
+        - containerPort: 5432
+          name: postgres
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        - name: geoip-config
+          mountPath: /etc/nginx/geoip
+        - name: ssl-certs
+          mountPath: /etc/nginx/ssl
+        - name: cache-volume
+          mountPath: /var/cache/nginx
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      - name: nginx-exporter
+        image: nginx/nginx-prometheus-exporter:0.10.0
+        ports:
+        - containerPort: 9113
+          name: metrics
+        args:
+        - -nginx.scrape-uri=http://localhost:8080/nginx_status
+        - -web.listen-address=0.0.0.0:9113
+        - -web.telemetry-path=/metrics
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "10m"
+          limits:
+            memory: "64Mi"
+            cpu: "50m"
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 9113
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 9113
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: global-load-balancer-config
+      - name: geoip-config
+        configMap:
+          name: global-load-balancer-config
+      - name: ssl-certs
+        secret:
+          secretName: global-tls-certificate
+      - name: cache-volume
+        emptyDir:
+          sizeLimit: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: global-load-balancer
+  namespace: ingress-system
+  labels:
+    app: global-load-balancer
+spec:
+  type: LoadBalancer
+  selector:
+    app: global-load-balancer
+  ports:
+  - port: 80
+    targetPort: 80
+    name: http
+  - port: 443
+    targetPort: 443
+    name: https
+  - port: 6379
+    targetPort: 6379
+    name: redis
+  - port: 5432
+    targetPort: 5432
+    name: postgres
+  - port: 9113
+    targetPort: 9113
+    name: metrics
+  loadBalancerSourceRanges:
+  - 0.0.0.0/0
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: global-tls-certificate
+  namespace: ingress-system
+type: kubernetes.io/tls
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t  # Base64 encoded certificate
+  tls.key: LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0t  # Base64 encoded private key
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: global-load-balancer-network-policy
+  namespace: ingress-system
+spec:
+  podSelector:
+    matchLabels:
+      app: global-load-balancer
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from: []
+    ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 443
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9113
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 6379
+    - protocol: TCP
+      port: 5432
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53

@@ -1,0 +1,481 @@
+/* NOCK= PLATFORM INTEGRATION BRANDING */
+/* Complete brand integration for NOCKCHAIN platform */
+
+/* Import brand foundation */
+@import url('../../visual-identity/colors-typography/nock-color-system.css');
+@import url('../../visual-identity/colors-typography/nock-typography-system.css');
+
+/* NOCK= PLATFORM BRAND OVERRIDES */
+/* Override existing glass morphism with brand-specific elements */
+
+/* Brand-specific logo integration */
+.nock-brand-logo {
+  font-family: var(--nock-font-mono);
+  font-weight: var(--nock-weight-bold);
+  font-size: var(--nock-text-4xl);
+  background: linear-gradient(135deg, var(--nock-white) 0%, var(--nock-yield-green) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+  transition: all 0.3s ease;
+}
+
+.nock-brand-logo:hover {
+  text-shadow: 0 0 30px rgba(0, 255, 136, 0.5);
+  transform: scale(1.05);
+}
+
+/* Brand-specific navigation */
+.nock-nav-brand {
+  background: var(--glass-bg-primary);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--glass-border);
+  padding: 1rem 0;
+}
+
+.nock-nav-brand .nock-brand-logo {
+  font-size: var(--nock-text-2xl);
+}
+
+.nock-nav-tagline {
+  font-family: var(--nock-font-mono);
+  font-size: var(--nock-text-sm);
+  color: var(--nock-gray-400);
+  margin-left: 1rem;
+  letter-spacing: var(--nock-tracking-wide);
+}
+
+/* Brand-specific buttons */
+.nock-btn-primary {
+  background: linear-gradient(135deg, var(--nock-yield-green) 0%, var(--nock-yield-green-dark) 100%);
+  border: 1px solid var(--nock-yield-green);
+  color: var(--nock-black);
+  font-family: var(--nock-font-mono);
+  font-weight: var(--nock-weight-semibold);
+  font-size: var(--nock-text-sm);
+  letter-spacing: var(--nock-tracking-wide);
+  text-transform: uppercase;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.nock-btn-primary:hover {
+  background: linear-gradient(135deg, var(--nock-yield-green-light) 0%, var(--nock-yield-green) 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 255, 136, 0.4);
+}
+
+.nock-btn-primary:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.nock-btn-secondary {
+  background: var(--glass-bg-secondary);
+  border: 1px solid var(--glass-border);
+  color: var(--nock-white);
+  font-family: var(--nock-font-mono);
+  font-weight: var(--nock-weight-medium);
+  font-size: var(--nock-text-sm);
+  letter-spacing: var(--nock-tracking-normal);
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.nock-btn-secondary:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--nock-yield-green);
+  color: var(--nock-yield-green);
+  transform: translateY(-1px);
+}
+
+/* Brand-specific cards */
+.nock-card-feature {
+  background: var(--glass-bg-primary);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 2rem;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.nock-card-feature::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--nock-yield-green) 0%, var(--nock-yield-green-dark) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.nock-card-feature:hover::before {
+  opacity: 1;
+}
+
+.nock-card-feature:hover {
+  background: var(--glass-bg-secondary);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0, 255, 136, 0.2);
+}
+
+.nock-card-feature-icon {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 1rem;
+  filter: drop-shadow(0 0 10px rgba(0, 255, 136, 0.3));
+}
+
+.nock-card-feature-title {
+  font-family: var(--nock-font-mono);
+  font-weight: var(--nock-weight-semibold);
+  font-size: var(--nock-text-xl);
+  color: var(--nock-white);
+  margin-bottom: 0.5rem;
+}
+
+.nock-card-feature-description {
+  font-family: var(--nock-font-sans);
+  font-size: var(--nock-text-base);
+  color: var(--nock-gray-300);
+  line-height: var(--nock-leading-relaxed);
+}
+
+/* Brand-specific metrics */
+.nock-metric-card {
+  background: var(--glass-bg-primary);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.nock-metric-card:hover {
+  background: var(--glass-bg-secondary);
+  border-color: var(--nock-yield-green);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 255, 136, 0.2);
+}
+
+.nock-metric-value {
+  font-family: var(--nock-font-mono);
+  font-weight: var(--nock-weight-bold);
+  font-size: var(--nock-text-3xl);
+  color: var(--nock-yield-green);
+  line-height: var(--nock-leading-none);
+  margin-bottom: 0.5rem;
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+}
+
+.nock-metric-label {
+  font-family: var(--nock-font-mono);
+  font-weight: var(--nock-weight-medium);
+  font-size: var(--nock-text-sm);
+  color: var(--nock-gray-400);
+  letter-spacing: var(--nock-tracking-wide);
+  text-transform: uppercase;
+}
+
+/* Brand-specific status indicators */
+.nock-status-online {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid var(--nock-yield-green);
+  border-radius: 20px;
+  font-family: var(--nock-font-mono);
+  font-size: var(--nock-text-xs);
+  font-weight: var(--nock-weight-medium);
+  color: var(--nock-yield-green);
+  letter-spacing: var(--nock-tracking-wide);
+  text-transform: uppercase;
+}
+
+.nock-status-online::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: var(--nock-yield-green);
+  border-radius: 50%;
+  animation: nock-pulse 2s infinite;
+}
+
+.nock-status-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  background: rgba(255, 170, 0, 0.1);
+  border: 1px solid var(--nock-warning);
+  border-radius: 20px;
+  font-family: var(--nock-font-mono);
+  font-size: var(--nock-text-xs);
+  font-weight: var(--nock-weight-medium);
+  color: var(--nock-warning);
+  letter-spacing: var(--nock-tracking-wide);
+  text-transform: uppercase;
+}
+
+.nock-status-warning::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: var(--nock-warning);
+  border-radius: 50%;
+}
+
+/* Brand-specific loading states */
+.nock-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--nock-font-mono);
+  font-size: var(--nock-text-sm);
+  color: var(--nock-gray-400);
+}
+
+.nock-loading::before {
+  content: 'N=';
+  font-weight: var(--nock-weight-bold);
+  color: var(--nock-yield-green);
+  animation: nock-spin 1s linear infinite;
+}
+
+/* Brand-specific animations */
+@keyframes nock-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.6);
+  }
+}
+
+@keyframes nock-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes nock-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Brand-specific success/error states */
+.nock-success {
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid var(--nock-yield-green);
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.nock-success-icon {
+  width: 24px;
+  height: 24px;
+  fill: var(--nock-yield-green);
+}
+
+.nock-success-message {
+  font-family: var(--nock-font-mono);
+  font-size: var(--nock-text-sm);
+  color: var(--nock-yield-green);
+  margin: 0;
+}
+
+.nock-error {
+  background: rgba(255, 68, 68, 0.1);
+  border: 1px solid var(--nock-error);
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.nock-error-icon {
+  width: 24px;
+  height: 24px;
+  fill: var(--nock-error);
+}
+
+.nock-error-message {
+  font-family: var(--nock-font-mono);
+  font-size: var(--nock-text-sm);
+  color: var(--nock-error);
+  margin: 0;
+}
+
+/* Brand-specific form elements */
+.nock-input {
+  background: var(--glass-bg-primary);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-family: var(--nock-font-mono);
+  font-size: var(--nock-text-base);
+  color: var(--nock-white);
+  width: 100%;
+  transition: all 0.3s ease;
+}
+
+.nock-input:focus {
+  outline: none;
+  background: var(--glass-bg-secondary);
+  border-color: var(--nock-yield-green);
+  box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.1);
+}
+
+.nock-input::placeholder {
+  color: var(--nock-gray-500);
+  font-style: italic;
+}
+
+.nock-label {
+  font-family: var(--nock-font-mono);
+  font-size: var(--nock-text-sm);
+  font-weight: var(--nock-weight-medium);
+  color: var(--nock-gray-400);
+  margin-bottom: 0.5rem;
+  display: block;
+  letter-spacing: var(--nock-tracking-wide);
+  text-transform: uppercase;
+}
+
+/* Brand-specific tables */
+.nock-table {
+  width: 100%;
+  background: var(--glass-bg-primary);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.nock-table th {
+  background: var(--glass-bg-secondary);
+  padding: 1rem;
+  font-family: var(--nock-font-mono);
+  font-size: var(--nock-text-sm);
+  font-weight: var(--nock-weight-semibold);
+  color: var(--nock-white);
+  text-align: left;
+  letter-spacing: var(--nock-tracking-wide);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.nock-table td {
+  padding: 1rem;
+  font-family: var(--nock-font-mono);
+  font-size: var(--nock-text-sm);
+  color: var(--nock-gray-300);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.nock-table tr:hover {
+  background: var(--glass-bg-secondary);
+}
+
+.nock-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Brand-specific responsive design */
+@media (max-width: 768px) {
+  .nock-brand-logo {
+    font-size: var(--nock-text-2xl);
+  }
+  
+  .nock-card-feature {
+    padding: 1.5rem;
+  }
+  
+  .nock-metric-value {
+    font-size: var(--nock-text-2xl);
+  }
+  
+  .nock-btn-primary,
+  .nock-btn-secondary {
+    padding: 0.625rem 1.25rem;
+    font-size: var(--nock-text-xs);
+  }
+}
+
+/* Brand-specific accessibility */
+.nock-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .nock-brand-logo {
+    text-shadow: none;
+  }
+  
+  .nock-card-feature:hover {
+    box-shadow: 0 0 0 2px var(--nock-yield-green);
+  }
+  
+  .nock-metric-value {
+    text-shadow: none;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .nock-brand-logo,
+  .nock-card-feature,
+  .nock-metric-card,
+  .nock-btn-primary,
+  .nock-btn-secondary {
+    transition: none;
+  }
+  
+  .nock-loading::before {
+    animation: none;
+  }
+  
+  .nock-status-online::before {
+    animation: none;
+  }
+}

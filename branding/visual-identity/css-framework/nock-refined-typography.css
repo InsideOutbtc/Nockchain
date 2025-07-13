@@ -1,0 +1,463 @@
+/* NOCK= REFINED TYPOGRAPHY SYSTEM */
+/* Professional typography inspired by Axiom/Hyperliquid aesthetics */
+/* 80% Clean Minimalist + 20% Strategic Tech Accents */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+:root {
+  /* FONT FAMILIES - PROFESSIONAL HIERARCHY */
+  --nock-font-mono: 'JetBrains Mono', 'Monaco', 'Consolas', 'SF Mono', 'Courier New', monospace;
+  --nock-font-sans: 'Inter', 'SF Pro Display', 'Helvetica Neue', 'Arial', sans-serif;
+  
+  /* MATHEMATICAL TYPOGRAPHY SCALE (AXIOM-INSPIRED) */
+  --nock-text-xs: 0.75rem;      /* 12px - Captions, fine print */
+  --nock-text-sm: 0.875rem;     /* 14px - Secondary text, labels */
+  --nock-text-base: 1rem;       /* 16px - Body text, primary content */
+  --nock-text-lg: 1.125rem;     /* 18px - Large body, emphasized content */
+  --nock-text-xl: 1.25rem;      /* 20px - Subheadings, card titles */
+  --nock-text-2xl: 1.5rem;      /* 24px - Section headers */
+  --nock-text-3xl: 1.875rem;    /* 30px - Page titles */
+  --nock-text-4xl: 2.25rem;     /* 36px - Feature headers */
+  --nock-text-5xl: 3rem;        /* 48px - Hero titles */
+  --nock-text-6xl: 3.75rem;     /* 60px - Brand headlines */
+  
+  /* LINE HEIGHTS - OPTIMIZED READABILITY */
+  --nock-leading-none: 1;
+  --nock-leading-tight: 1.25;
+  --nock-leading-snug: 1.375;
+  --nock-leading-normal: 1.5;
+  --nock-leading-relaxed: 1.625;
+  --nock-leading-loose: 2;
+  
+  /* FONT WEIGHTS - PRECISE HIERARCHY */
+  --nock-weight-light: 300;
+  --nock-weight-normal: 400;
+  --nock-weight-medium: 500;
+  --nock-weight-semibold: 600;
+  --nock-weight-bold: 700;
+  --nock-weight-extrabold: 800;
+  --nock-weight-black: 900;
+  
+  /* LETTER SPACING - PROFESSIONAL REFINEMENT */
+  --nock-tracking-tighter: -0.05em;
+  --nock-tracking-tight: -0.025em;
+  --nock-tracking-normal: 0em;
+  --nock-tracking-wide: 0.025em;
+  --nock-tracking-wider: 0.05em;
+  --nock-tracking-widest: 0.1em;
+}
+
+/* BASE TYPOGRAPHY RESETS - PROFESSIONAL FOUNDATION */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+html {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+body {
+  font-family: var(--nock-font-sans);
+  font-size: var(--nock-text-base);
+  font-weight: var(--nock-weight-normal);
+  color: var(--nock-gray-300);
+  background-color: var(--nock-gray-900);
+  line-height: var(--nock-leading-normal);
+}
+
+/* HEADING HIERARCHY - AXIOM-INSPIRED PRECISION */
+h1, .nock-h1 {
+  font-family: var(--nock-font-mono);
+  font-size: var(--nock-text-5xl);
+  font-weight: var(--nock-weight-bold);
+  line-height: var(--nock-leading-tight);
+  letter-spacing: var(--nock-tracking-tight);
+  color: var(--nock-white);
+  margin-bottom: 1.5rem;
+}
+
+h2, .nock-h2 {
+  font-family: var(--nock-font-sans);
+  font-size: var(--nock-text-3xl);
+  font-weight: var(--nock-weight-semibold);
+  line-height: var(--nock-leading-tight);
+  letter-spacing: var(--nock-tracking-tight);
+  color: var(--nock-white);
+  margin-bottom: 1.25rem;
+}
+
+h3, .nock-h3 {
+  font-family: var(--nock-font-sans);
+  font-size: var(--nock-text-2xl);
+  font-weight: var(--nock-weight-medium);
+  line-height: var(--nock-leading-snug);
+  letter-spacing: var(--nock-tracking-normal);
+  color: var(--nock-gray-300);
+  margin-bottom: 1rem;
+}
+
+h4, .nock-h4 {
+  font-family: var(--nock-font-sans);
+  font-size: var(--nock-text-xl);
+  font-weight: var(--nock-weight-medium);
+  line-height: var(--nock-leading-snug);
+  letter-spacing: var(--nock-tracking-normal);
+  color: var(--nock-gray-300);
+  margin-bottom: 0.75rem;
+}
+
+h5, .nock-h5 {
+  font-family: var(--nock-font-sans);
+  font-size: var(--nock-text-lg);
+  font-weight: var(--nock-weight-medium);
+  line-height: var(--nock-leading-normal);
+  letter-spacing: var(--nock-tracking-normal);
+  color: var(--nock-gray-400);
+  margin-bottom: 0.5rem;
+}
+
+h6, .nock-h6 {
+  font-family: var(--nock-font-mono);
+  font-size: var(--nock-text-base);
+  font-weight: var(--nock-weight-semibold);
+  line-height: var(--nock-leading-normal);
+  letter-spacing: var(--nock-tracking-wide);
+  color: var(--nock-gray-400);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+}
+
+/* BODY TEXT - PROFESSIONAL READABILITY */
+p, .nock-body {
+  font-family: var(--nock-font-sans);
+  font-size: var(--nock-text-base);
+  font-weight: var(--nock-weight-normal);
+  line-height: var(--nock-leading-relaxed);
+  color: var(--nock-gray-400);
+  margin-bottom: 1rem;
+}
+
+.nock-body-large {
+  font-size: var(--nock-text-lg);
+  line-height: var(--nock-leading-relaxed);
+  color: var(--nock-gray-300);
+}
+
+.nock-body-small {
+  font-size: var(--nock-text-sm);
+  line-height: var(--nock-leading-normal);
+  color: var(--nock-gray-500);
+}
+
+/* MONOSPACE TEXT - TECHNICAL PRECISION */
+code, pre, .nock-mono {
+  font-family: var(--nock-font-mono);
+  font-size: 0.9em;
+  font-weight: var(--nock-weight-normal);
+  letter-spacing: var(--nock-tracking-normal);
+}
+
+.nock-code {
+  background: var(--nock-gray-800);
+  color: var(--nock-yield-green);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--nock-gray-700);
+}
+
+.nock-code-block {
+  background: var(--nock-gray-800);
+  color: var(--nock-gray-300);
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--nock-gray-700);
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+/* LINKS - PROFESSIONAL INTERACTION */
+a, .nock-link {
+  color: var(--nock-yield-green);
+  text-decoration: none;
+  transition: var(--nock-transition-fast);
+  border-bottom: 1px solid transparent;
+}
+
+a:hover, .nock-link:hover {
+  color: var(--nock-yield-green-light);
+  border-bottom-color: var(--nock-yield-green-40);
+}
+
+a:focus, .nock-link:focus {
+  outline: none;
+  color: var(--nock-yield-green-light);
+  border-bottom-color: var(--nock-yield-green);
+  box-shadow: 0 2px 4px var(--nock-yield-green-20);
+}
+
+/* PROFESSIONAL LINK VARIANTS */
+.nock-link-subtle {
+  color: var(--nock-gray-300);
+  border-bottom: 1px solid var(--nock-gray-600);
+}
+
+.nock-link-subtle:hover {
+  color: var(--nock-white);
+  border-bottom-color: var(--nock-gray-400);
+}
+
+.nock-link-accent {
+  color: var(--nock-electric-blue);
+  border-bottom: 1px solid var(--nock-electric-blue);
+}
+
+.nock-link-accent:hover {
+  color: var(--nock-white);
+  border-bottom-color: var(--nock-electric-blue);
+  text-shadow: 0 0 8px rgba(0, 212, 255, 0.3);
+}
+
+/* LISTS - STRUCTURED INFORMATION */
+ul, ol {
+  margin: 1rem 0;
+  padding-left: 1.5rem;
+}
+
+li {
+  font-family: var(--nock-font-sans);
+  font-size: var(--nock-text-base);
+  line-height: var(--nock-leading-relaxed);
+  color: var(--nock-gray-400);
+  margin-bottom: 0.5rem;
+}
+
+/* PROFESSIONAL LIST STYLING */
+.nock-list-clean {
+  list-style: none;
+  padding-left: 0;
+}
+
+.nock-list-clean li {
+  position: relative;
+  padding-left: 1.5rem;
+}
+
+.nock-list-clean li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  color: var(--nock-yield-green);
+  font-family: var(--nock-font-mono);
+  font-weight: var(--nock-weight-medium);
+}
+
+.nock-list-metrics {
+  list-style: none;
+  padding-left: 0;
+}
+
+.nock-list-metrics li {
+  position: relative;
+  padding-left: 2rem;
+  font-family: var(--nock-font-mono);
+  font-size: var(--nock-text-sm);
+}
+
+.nock-list-metrics li::before {
+  content: '●';
+  position: absolute;
+  left: 0;
+  color: var(--nock-yield-green);
+  animation: nock-pulse-subtle 2s infinite;
+}
+
+/* BLOCKQUOTES - EMPHASIZED CONTENT */
+blockquote, .nock-quote {
+  border-left: 3px solid var(--nock-yield-green);
+  background: var(--nock-gray-800);
+  padding: 1rem 1.5rem;
+  margin: 1.5rem 0;
+  border-radius: 0 8px 8px 0;
+  font-style: italic;
+}
+
+blockquote p {
+  color: var(--nock-gray-300);
+  margin-bottom: 0;
+}
+
+/* PROFESSIONAL EMPHASIS CLASSES */
+.nock-emphasis {
+  color: var(--nock-yield-green);
+  font-weight: var(--nock-weight-medium);
+}
+
+.nock-emphasis-strong {
+  color: var(--nock-white);
+  font-weight: var(--nock-weight-semibold);
+  background: linear-gradient(135deg, var(--nock-white) 0%, var(--nock-yield-green) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.nock-emphasis-subtle {
+  color: var(--nock-gray-300);
+  font-weight: var(--nock-weight-medium);
+}
+
+/* METRIC DISPLAY - PERFORMANCE EMPHASIS */
+.nock-metric {
+  font-family: var(--nock-font-mono);
+  font-size: var(--nock-text-2xl);
+  font-weight: var(--nock-weight-bold);
+  color: var(--nock-yield-green);
+  line-height: var(--nock-leading-none);
+  letter-spacing: var(--nock-tracking-tight);
+}
+
+.nock-metric-large {
+  font-size: var(--nock-text-4xl);
+  text-shadow: 0 0 20px var(--nock-yield-green-20);
+}
+
+.nock-metric-small {
+  font-size: var(--nock-text-lg);
+}
+
+.nock-metric-label {
+  font-family: var(--nock-font-mono);
+  font-size: var(--nock-text-xs);
+  font-weight: var(--nock-weight-medium);
+  color: var(--nock-gray-500);
+  text-transform: uppercase;
+  letter-spacing: var(--nock-tracking-wider);
+  margin-top: 0.25rem;
+}
+
+/* BRAND DISPLAY TYPOGRAPHY */
+.nock-brand-title {
+  font-family: var(--nock-font-mono);
+  font-size: var(--nock-text-6xl);
+  font-weight: var(--nock-weight-bold);
+  background: linear-gradient(135deg, var(--nock-white) 0%, var(--nock-yield-green) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: var(--nock-leading-none);
+  letter-spacing: var(--nock-tracking-tight);
+}
+
+.nock-tagline {
+  font-family: var(--nock-font-mono);
+  font-size: var(--nock-text-xl);
+  font-weight: var(--nock-weight-medium);
+  color: var(--nock-gray-400);
+  text-transform: uppercase;
+  letter-spacing: var(--nock-tracking-wider);
+  margin-top: 0.5rem;
+}
+
+/* UTILITY TYPOGRAPHY CLASSES */
+.nock-font-mono { font-family: var(--nock-font-mono); }
+.nock-font-sans { font-family: var(--nock-font-sans); }
+
+.nock-text-xs { font-size: var(--nock-text-xs); }
+.nock-text-sm { font-size: var(--nock-text-sm); }
+.nock-text-base { font-size: var(--nock-text-base); }
+.nock-text-lg { font-size: var(--nock-text-lg); }
+.nock-text-xl { font-size: var(--nock-text-xl); }
+.nock-text-2xl { font-size: var(--nock-text-2xl); }
+.nock-text-3xl { font-size: var(--nock-text-3xl); }
+.nock-text-4xl { font-size: var(--nock-text-4xl); }
+.nock-text-5xl { font-size: var(--nock-text-5xl); }
+.nock-text-6xl { font-size: var(--nock-text-6xl); }
+
+.nock-weight-light { font-weight: var(--nock-weight-light); }
+.nock-weight-normal { font-weight: var(--nock-weight-normal); }
+.nock-weight-medium { font-weight: var(--nock-weight-medium); }
+.nock-weight-semibold { font-weight: var(--nock-weight-semibold); }
+.nock-weight-bold { font-weight: var(--nock-weight-bold); }
+
+.nock-leading-none { line-height: var(--nock-leading-none); }
+.nock-leading-tight { line-height: var(--nock-leading-tight); }
+.nock-leading-snug { line-height: var(--nock-leading-snug); }
+.nock-leading-normal { line-height: var(--nock-leading-normal); }
+.nock-leading-relaxed { line-height: var(--nock-leading-relaxed); }
+
+.nock-tracking-tight { letter-spacing: var(--nock-tracking-tight); }
+.nock-tracking-normal { letter-spacing: var(--nock-tracking-normal); }
+.nock-tracking-wide { letter-spacing: var(--nock-tracking-wide); }
+.nock-tracking-wider { letter-spacing: var(--nock-tracking-wider); }
+
+.nock-text-left { text-align: left; }
+.nock-text-center { text-align: center; }
+.nock-text-right { text-align: right; }
+
+.nock-uppercase { text-transform: uppercase; }
+.nock-lowercase { text-transform: lowercase; }
+.nock-capitalize { text-transform: capitalize; }
+
+/* RESPONSIVE TYPOGRAPHY - PROFESSIONAL SCALING */
+@media (max-width: 768px) {
+  :root {
+    --nock-text-5xl: 2.25rem;  /* 36px on mobile */
+    --nock-text-4xl: 1.875rem; /* 30px on mobile */
+    --nock-text-3xl: 1.5rem;   /* 24px on mobile */
+  }
+  
+  .nock-brand-title {
+    font-size: var(--nock-text-5xl);
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --nock-text-5xl: 1.875rem; /* 30px on small mobile */
+    --nock-text-4xl: 1.5rem;   /* 24px on small mobile */
+  }
+}
+
+/* PRINT TYPOGRAPHY */
+@media print {
+  * {
+    color: #000000 !important;
+    background: transparent !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+  }
+  
+  .nock-brand-title,
+  .nock-emphasis-strong {
+    -webkit-text-fill-color: #000000 !important;
+    color: #000000 !important;
+  }
+  
+  .nock-metric {
+    color: #000000 !important;
+  }
+}
+
+/* ACCESSIBILITY ENHANCEMENTS */
+@media (prefers-reduced-motion: reduce) {
+  .nock-list-metrics li::before {
+    animation: none;
+  }
+}
+
+/* HIGH CONTRAST MODE */
+@media (prefers-contrast: high) {
+  :root {
+    --nock-gray-400: #ffffff;
+    --nock-gray-300: #ffffff;
+  }
+  
+  .nock-emphasis,
+  .nock-metric {
+    color: #00ff00;
+    text-shadow: none;
+  }
+}

@@ -1,0 +1,391 @@
+# Automated release workflow for Nockchain mining pool
+# Handles semantic versioning, changelog generation, and release creation
+
+name: Release
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  # Determine if a release should be created
+  check-release:
+    name: Check Release Conditions
+    runs-on: ubuntu-latest
+    outputs:
+      should-release: ${{ steps.check.outputs.should-release }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for conventional commits
+        id: check
+        run: |
+          # Get commits since last release
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -z "$LAST_TAG" ]; then
+            echo "No previous tags found, creating initial release"
+            echo "should-release=true" >> $GITHUB_OUTPUT
+            echo "version=1.0.0" >> $GITHUB_OUTPUT
+          else
+            # Check if there are any feat: or fix: commits since last release
+            COMMITS=$(git log $LAST_TAG..HEAD --oneline --grep="^feat\|^fix\|^perf\|BREAKING CHANGE" || echo "")
+            
+            if [ -n "$COMMITS" ]; then
+              echo "Found release-worthy commits since $LAST_TAG"
+              echo "should-release=true" >> $GITHUB_OUTPUT
+              
+              # Determine version bump based on conventional commits
+              if git log $LAST_TAG..HEAD --oneline | grep -q "BREAKING CHANGE\|^feat!"; then
+                NEW_VERSION=$(npx semver $LAST_TAG -i major)
+              elif git log $LAST_TAG..HEAD --oneline | grep -q "^feat"; then
+                NEW_VERSION=$(npx semver $LAST_TAG -i minor)
+              else
+                NEW_VERSION=$(npx semver $LAST_TAG -i patch)
+              fi
+              
+              echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+            else
+              echo "No release-worthy commits found since $LAST_TAG"
+              echo "should-release=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Manual release version
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+          NEW_VERSION=$(npx semver $LAST_TAG -i ${{ github.event.inputs.release_type }})
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "should-release=true" >> $GITHUB_OUTPUT
+
+  # Generate changelog and create release
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [check-release]
+    if: needs.check-release.outputs.should-release == 'true'
+    outputs:
+      release-tag: ${{ steps.create-release.outputs.tag_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ needs.check-release.outputs.version }}"
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          # Generate changelog content
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS_RANGE=""
+          else
+            COMMITS_RANGE="$LAST_TAG..HEAD"
+          fi
+          
+          cat > CHANGELOG_NEW.md << 'EOF'
+          # Changelog
+          
+          ## [$VERSION] - $(date +%Y-%m-%d)
+          
+          ### Added
+          EOF
+          
+          # Extract feat commits
+          git log $COMMITS_RANGE --oneline --grep="^feat" --format="- %s" >> CHANGELOG_NEW.md || true
+          
+          cat >> CHANGELOG_NEW.md << 'EOF'
+          
+          ### Fixed
+          EOF
+          
+          # Extract fix commits
+          git log $COMMITS_RANGE --oneline --grep="^fix" --format="- %s" >> CHANGELOG_NEW.md || true
+          
+          cat >> CHANGELOG_NEW.md << 'EOF'
+          
+          ### Performance
+          EOF
+          
+          # Extract perf commits
+          git log $COMMITS_RANGE --oneline --grep="^perf" --format="- %s" >> CHANGELOG_NEW.md || true
+          
+          cat >> CHANGELOG_NEW.md << 'EOF'
+          
+          ### Breaking Changes
+          EOF
+          
+          # Extract breaking changes
+          git log $COMMITS_RANGE --oneline --grep="BREAKING CHANGE\|!" --format="- %s" >> CHANGELOG_NEW.md || true
+          
+          # Read the changelog content for the release
+          CHANGELOG_CONTENT=$(cat CHANGELOG_NEW.md)
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Update package.json version
+        run: |
+          VERSION="${{ needs.check-release.outputs.version }}"
+          npm version $VERSION --no-git-tag-version
+          
+          # Update version in all workspace packages
+          for pkg in apps/*/package.json packages/*/package.json; do
+            if [ -f "$pkg" ]; then
+              npx json -I -f "$pkg" -e "this.version='$VERSION'"
+            fi
+          done
+
+      - name: Update Cargo.toml version
+        run: |
+          VERSION="${{ needs.check-release.outputs.version }}"
+          sed -i "s/^version = .*/version = \"$VERSION\"/" apps/mining-pool/Cargo.toml
+
+      - name: Commit version updates
+        run: |
+          VERSION="${{ needs.check-release.outputs.version }}"
+          git add .
+          git commit -m "chore: bump version to $VERSION"
+          git push
+
+      - name: Create GitHub release
+        id: create-release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ needs.check-release.outputs.version }}
+          release_name: Release v${{ needs.check-release.outputs.version }}
+          body: |
+            # Nockchain Mining Pool v${{ needs.check-release.outputs.version }}
+            
+            ${{ steps.changelog.outputs.changelog }}
+            
+            ## 🚀 Quick Start
+            
+            ### Docker Compose (Recommended)
+            ```bash
+            curl -sSL https://raw.githubusercontent.com/nockchain/mining-pool/v${{ needs.check-release.outputs.version }}/docker-compose.yml | docker-compose -f - up -d
+            ```
+            
+            ### Kubernetes
+            ```bash
+            kubectl apply -f https://raw.githubusercontent.com/nockchain/mining-pool/v${{ needs.check-release.outputs.version }}/k8s/
+            ```
+            
+            ### Manual Installation
+            See the [Installation Guide](https://github.com/nockchain/mining-pool/blob/v${{ needs.check-release.outputs.version }}/docs/installation.md) for detailed instructions.
+            
+            ## 📊 Metrics & Monitoring
+            
+            This release includes comprehensive monitoring with Prometheus, Grafana, and custom alerting:
+            - Real-time pool metrics and dashboards
+            - Automated alerting for critical events
+            - Performance monitoring and optimization
+            
+            ## 🔒 Security
+            
+            - All container images are scanned for vulnerabilities
+            - Security best practices implemented throughout
+            - Regular dependency updates and security patches
+            
+            ## 📝 Migration Notes
+            
+            If upgrading from a previous version, please review the [Migration Guide](https://github.com/nockchain/mining-pool/blob/v${{ needs.check-release.outputs.version }}/docs/migration.md).
+            
+            ## 🐛 Bug Reports
+            
+            Please report any issues at: https://github.com/nockchain/mining-pool/issues
+          draft: false
+          prerelease: false
+
+  # Build release artifacts
+  build-release-artifacts:
+    name: Build Release Artifacts
+    runs-on: ubuntu-latest
+    needs: [create-release]
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - x86_64-apple-darwin
+          - aarch64-apple-darwin
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.check-release.outputs.version }}
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install cross-compilation dependencies
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build Rust binary
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+        working-directory: ./apps/mining-pool
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+
+      - name: Install Node.js dependencies
+        run: npm ci
+
+      - name: Build Node.js applications
+        run: |
+          npm run build:web
+          npm run build:monitoring
+        env:
+          NODE_ENV: production
+
+      - name: Create release archive
+        run: |
+          VERSION=${{ needs.check-release.outputs.version }}
+          TARGET=${{ matrix.target }}
+          
+          mkdir -p dist/nockchain-mining-pool-$VERSION-$TARGET
+          
+          # Copy Rust binary
+          if [[ "$TARGET" == *"windows"* ]]; then
+            cp apps/mining-pool/target/$TARGET/release/mining-pool.exe dist/nockchain-mining-pool-$VERSION-$TARGET/
+          else
+            cp apps/mining-pool/target/$TARGET/release/mining-pool dist/nockchain-mining-pool-$VERSION-$TARGET/
+          fi
+          
+          # Copy Node.js builds
+          cp -r apps/web/.next dist/nockchain-mining-pool-$VERSION-$TARGET/web/
+          cp -r apps/monitoring/dist dist/nockchain-mining-pool-$VERSION-$TARGET/monitoring/
+          
+          # Copy configuration files
+          cp -r docker/ dist/nockchain-mining-pool-$VERSION-$TARGET/
+          cp -r k8s/ dist/nockchain-mining-pool-$VERSION-$TARGET/
+          cp README.md LICENSE dist/nockchain-mining-pool-$VERSION-$TARGET/
+          
+          # Create archive
+          cd dist
+          tar -czf nockchain-mining-pool-$VERSION-$TARGET.tar.gz nockchain-mining-pool-$VERSION-$TARGET/
+          
+          # Generate checksums
+          sha256sum nockchain-mining-pool-$VERSION-$TARGET.tar.gz > nockchain-mining-pool-$VERSION-$TARGET.tar.gz.sha256
+
+      - name: Upload release assets
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./dist/nockchain-mining-pool-${{ needs.check-release.outputs.version }}-${{ matrix.target }}.tar.gz
+          asset_name: nockchain-mining-pool-${{ needs.check-release.outputs.version }}-${{ matrix.target }}.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload checksums
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./dist/nockchain-mining-pool-${{ needs.check-release.outputs.version }}-${{ matrix.target }}.tar.gz.sha256
+          asset_name: nockchain-mining-pool-${{ needs.check-release.outputs.version }}-${{ matrix.target }}.tar.gz.sha256
+          asset_content_type: text/plain
+
+  # Notify stakeholders
+  notify-release:
+    name: Notify Release
+    runs-on: ubuntu-latest
+    needs: [create-release, build-release-artifacts]
+    if: always() && needs.create-release.result == 'success'
+    steps:
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          message: |
+            🎉 New Nockchain Mining Pool Release!
+            Version: v${{ needs.check-release.outputs.version }}
+            Release: https://github.com/nockchain/mining-pool/releases/tag/v${{ needs.check-release.outputs.version }}
+            
+            Ready for deployment to production! 🚀
+
+      - name: Notify Discord
+        uses: Ilshidur/action-discord@master
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        with:
+          args: |
+            🎉 **New Release Available!**
+            
+            **Nockchain Mining Pool v${{ needs.check-release.outputs.version }}**
+            
+            🔗 [View Release](https://github.com/nockchain/mining-pool/releases/tag/v${{ needs.check-release.outputs.version }})
+            🚀 Ready for production deployment!
+
+      - name: Update documentation
+        run: |
+          # Trigger documentation update workflow
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/nockchain/docs/dispatches \
+            -d '{"event_type":"release_published","client_payload":{"version":"v${{ needs.check-release.outputs.version }}"}}'

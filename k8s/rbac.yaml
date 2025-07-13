@@ -1,0 +1,217 @@
+# RBAC configuration for Nockchain mining pool
+
+# Service Account for applications
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nockchain-service-account
+  namespace: nockchain
+  labels:
+    app: nockchain
+automountServiceAccountToken: false
+
+---
+# Role for basic operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: nockchain-role
+  namespace: nockchain
+rules:
+  # Allow reading ConfigMaps and Secrets
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "list"]
+  
+  # Allow reading pods for health checks
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  
+  # Allow reading services for service discovery
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list"]
+
+---
+# RoleBinding to connect ServiceAccount with Role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nockchain-role-binding
+  namespace: nockchain
+subjects:
+  - kind: ServiceAccount
+    name: nockchain-service-account
+    namespace: nockchain
+roleRef:
+  kind: Role
+  name: nockchain-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ClusterRole for monitoring across namespaces
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nockchain-monitoring-role
+rules:
+  # Allow reading nodes and metrics
+  - apiGroups: [""]
+    resources: ["nodes", "nodes/metrics", "pods", "services", "endpoints"]
+    verbs: ["get", "list", "watch"]
+  
+  # Allow reading metrics from metrics server
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list"]
+
+---
+# Service Account for monitoring
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nockchain-monitoring-service-account
+  namespace: nockchain
+  labels:
+    app: nockchain-monitoring
+
+---
+# ClusterRoleBinding for monitoring
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: nockchain-monitoring-role-binding
+subjects:
+  - kind: ServiceAccount
+    name: nockchain-monitoring-service-account
+    namespace: nockchain
+roleRef:
+  kind: ClusterRole
+  name: nockchain-monitoring-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Pod Security Policy for enhanced security
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: nockchain-psp
+  labels:
+    app: nockchain
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  supplementalGroups:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 1001
+        max: 65535
+  fsGroup:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 1001
+        max: 65535
+  readOnlyRootFilesystem: true
+
+---
+# Role for Pod Security Policy
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: nockchain-psp-role
+  namespace: nockchain
+rules:
+  - apiGroups: ['policy']
+    resources: ['podsecuritypolicies']
+    verbs: ['use']
+    resourceNames:
+      - nockchain-psp
+
+---
+# RoleBinding for Pod Security Policy
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nockchain-psp-role-binding
+  namespace: nockchain
+roleRef:
+  kind: Role
+  name: nockchain-psp-role
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+  - kind: ServiceAccount
+    name: nockchain-service-account
+    namespace: nockchain
+  - kind: ServiceAccount
+    name: nockchain-monitoring-service-account
+    namespace: nockchain
+
+---
+# Network policy for database access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-network-policy
+  namespace: nockchain
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    # Only allow access from web app and mining pool
+    - from:
+        - podSelector:
+            matchLabels:
+              app: nockchain-web
+        - podSelector:
+            matchLabels:
+              app: nockchain-mining-pool
+      ports:
+        - protocol: TCP
+          port: 5432
+
+---
+# Network policy for Redis access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-network-policy
+  namespace: nockchain
+spec:
+  podSelector:
+    matchLabels:
+      app: redis
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow access from all application pods
+    - from:
+        - podSelector:
+            matchLabels:
+              component: frontend
+        - podSelector:
+            matchLabels:
+              component: backend
+        - podSelector:
+            matchLabels:
+              component: monitoring
+      ports:
+        - protocol: TCP
+          port: 6379

@@ -1,0 +1,944 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tekton-pipelines
+---
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: nockchain-performance-optimizer-pipeline
+  namespace: tekton-pipelines
+spec:
+  description: |
+    Advanced CI/CD pipeline for Nockchain Performance Optimizer
+    Features:
+    - Multi-stage testing (unit, integration, load, security)
+    - Zero-downtime blue-green deployments
+    - Automated rollback on failure
+    - Multi-region deployment
+    - Performance validation
+    - Security scanning
+  params:
+  - name: git-url
+    type: string
+    description: Git repository URL
+    default: https://github.com/nockchain/performance-optimizer.git
+  - name: git-revision
+    type: string
+    description: Git revision to checkout
+    default: main
+  - name: image-reference
+    type: string
+    description: Name of the image to be built
+    default: nockchain/performance-optimizer
+  - name: target-namespace
+    type: string
+    description: Target namespace for deployment
+    default: nockchain
+  - name: deployment-strategy
+    type: string
+    description: Deployment strategy (blue-green, canary, rolling)
+    default: blue-green
+  - name: performance-threshold
+    type: string
+    description: Performance threshold for validation
+    default: "25ms"
+  - name: regions
+    type: array
+    description: Target regions for deployment
+    default: ["us-west-2", "us-east-1", "eu-west-1", "ap-southeast-1"]
+  - name: enable-chaos-testing
+    type: string
+    description: Enable chaos testing
+    default: "true"
+  
+  workspaces:
+  - name: shared-data
+    description: Shared workspace for pipeline data
+  - name: git-credentials
+    description: Git credentials for private repositories
+  - name: docker-credentials
+    description: Docker registry credentials
+  - name: k8s-credentials
+    description: Kubernetes cluster credentials
+  
+  tasks:
+  
+  # Task 1: Source Code Checkout
+  - name: git-clone
+    taskRef:
+      name: git-clone
+      kind: ClusterTask
+    workspaces:
+    - name: output
+      workspace: shared-data
+    - name: ssh-directory
+      workspace: git-credentials
+    params:
+    - name: url
+      value: $(params.git-url)
+    - name: revision
+      value: $(params.git-revision)
+    - name: subdirectory
+      value: "source"
+    - name: depth
+      value: "1"
+    - name: deleteExisting
+      value: "true"
+  
+  # Task 2: Code Quality Analysis
+  - name: code-quality
+    taskRef:
+      name: code-quality-analysis
+    runAfter: ["git-clone"]
+    workspaces:
+    - name: source
+      workspace: shared-data
+    params:
+    - name: source-path
+      value: "source"
+    - name: quality-gate-threshold
+      value: "80"
+  
+  # Task 3: Security Scan
+  - name: security-scan
+    taskRef:
+      name: security-scan
+    runAfter: ["git-clone"]
+    workspaces:
+    - name: source
+      workspace: shared-data
+    params:
+    - name: source-path
+      value: "source"
+    - name: scan-type
+      value: "sast,dependency,secrets"
+  
+  # Task 4: Unit Tests
+  - name: unit-tests
+    taskRef:
+      name: rust-test
+    runAfter: ["code-quality"]
+    workspaces:
+    - name: source
+      workspace: shared-data
+    params:
+    - name: source-path
+      value: "source"
+    - name: test-type
+      value: "unit"
+    - name: coverage-threshold
+      value: "80"
+  
+  # Task 5: Build and Test
+  - name: build-test
+    taskRef:
+      name: rust-build
+    runAfter: ["unit-tests", "security-scan"]
+    workspaces:
+    - name: source
+      workspace: shared-data
+    params:
+    - name: source-path
+      value: "source"
+    - name: build-type
+      value: "release"
+    - name: target-arch
+      value: "x86_64-unknown-linux-musl"
+  
+  # Task 6: Container Image Build
+  - name: build-image
+    taskRef:
+      name: buildah
+      kind: ClusterTask
+    runAfter: ["build-test"]
+    workspaces:
+    - name: source
+      workspace: shared-data
+    - name: dockerconfig
+      workspace: docker-credentials
+    params:
+    - name: IMAGE
+      value: $(params.image-reference):$(params.git-revision)
+    - name: DOCKERFILE
+      value: "source/Dockerfile"
+    - name: CONTEXT
+      value: "source"
+    - name: FORMAT
+      value: "oci"
+    - name: BUILD_EXTRA_ARGS
+      value: |
+        --build-arg GIT_COMMIT=$(params.git-revision)
+        --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        --build-arg VERSION=$(params.git-revision)
+        --label org.opencontainers.image.source=$(params.git-url)
+        --label org.opencontainers.image.revision=$(params.git-revision)
+        --label org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  
+  # Task 7: Image Security Scan
+  - name: image-scan
+    taskRef:
+      name: trivy-scanner
+    runAfter: ["build-image"]
+    workspaces:
+    - name: source
+      workspace: shared-data
+    params:
+    - name: IMAGE
+      value: $(params.image-reference):$(params.git-revision)
+    - name: SEVERITY
+      value: "HIGH,CRITICAL"
+    - name: EXIT_CODE
+      value: "1"
+  
+  # Task 8: Performance Benchmarks
+  - name: performance-benchmarks
+    taskRef:
+      name: performance-test
+    runAfter: ["build-test"]
+    workspaces:
+    - name: source
+      workspace: shared-data
+    params:
+    - name: source-path
+      value: "source"
+    - name: benchmark-type
+      value: "cpu,memory,network"
+    - name: duration
+      value: "5m"
+  
+  # Task 9: Integration Tests
+  - name: integration-tests
+    taskRef:
+      name: integration-test
+    runAfter: ["image-scan"]
+    workspaces:
+    - name: source
+      workspace: shared-data
+    - name: kubeconfig
+      workspace: k8s-credentials
+    params:
+    - name: IMAGE
+      value: $(params.image-reference):$(params.git-revision)
+    - name: test-namespace
+      value: "integration-test"
+    - name: test-duration
+      value: "10m"
+  
+  # Task 10: Load Testing
+  - name: load-testing
+    taskRef:
+      name: load-test
+    runAfter: ["integration-tests"]
+    workspaces:
+    - name: source
+      workspace: shared-data
+    params:
+    - name: target-endpoint
+      value: "http://performance-optimizer-service.integration-test.svc.cluster.local:8000"
+    - name: concurrent-users
+      value: "1000"
+    - name: duration
+      value: "5m"
+    - name: acceptable-response-time
+      value: $(params.performance-threshold)
+  
+  # Task 11: Chaos Engineering Tests
+  - name: chaos-testing
+    taskRef:
+      name: chaos-test
+    runAfter: ["load-testing"]
+    when:
+    - input: "$(params.enable-chaos-testing)"
+      operator: in
+      values: ["true"]
+    workspaces:
+    - name: source
+      workspace: shared-data
+    - name: kubeconfig
+      workspace: k8s-credentials
+    params:
+    - name: target-namespace
+      value: "integration-test"
+    - name: chaos-duration
+      value: "3m"
+    - name: experiments
+      value: "pod-failure,network-latency,cpu-stress"
+  
+  # Task 12: Multi-Region Deployment
+  - name: multi-region-deploy
+    taskRef:
+      name: multi-region-deploy
+    runAfter: ["chaos-testing"]
+    workspaces:
+    - name: source
+      workspace: shared-data
+    - name: kubeconfig
+      workspace: k8s-credentials
+    params:
+    - name: IMAGE
+      value: $(params.image-reference):$(params.git-revision)
+    - name: target-namespace
+      value: $(params.target-namespace)
+    - name: regions
+      value: $(params.regions)
+    - name: deployment-strategy
+      value: $(params.deployment-strategy)
+    - name: validation-timeout
+      value: "300s"
+  
+  # Task 13: Production Validation
+  - name: production-validation
+    taskRef:
+      name: production-validate
+    runAfter: ["multi-region-deploy"]
+    workspaces:
+    - name: source
+      workspace: shared-data
+    params:
+    - name: regions
+      value: $(params.regions)
+    - name: validation-duration
+      value: "5m"
+    - name: health-check-interval
+      value: "10s"
+    - name: performance-threshold
+      value: $(params.performance-threshold)
+  
+  # Task 14: Monitoring Setup
+  - name: monitoring-setup
+    taskRef:
+      name: monitoring-setup
+    runAfter: ["production-validation"]
+    workspaces:
+    - name: source
+      workspace: shared-data
+    - name: kubeconfig
+      workspace: k8s-credentials
+    params:
+    - name: IMAGE
+      value: $(params.image-reference):$(params.git-revision)
+    - name: regions
+      value: $(params.regions)
+    - name: alert-channels
+      value: "slack,email,pagerduty"
+  
+  # Task 15: Post-deployment Tests
+  - name: post-deployment-tests
+    taskRef:
+      name: post-deploy-test
+    runAfter: ["monitoring-setup"]
+    workspaces:
+    - name: source
+      workspace: shared-data
+    params:
+    - name: regions
+      value: $(params.regions)
+    - name: test-suites
+      value: "smoke,regression,performance"
+    - name: test-duration
+      value: "15m"
+  
+  # Task 16: Rollback on Failure
+  - name: rollback-on-failure
+    taskRef:
+      name: rollback-deployment
+    runAfter: ["post-deployment-tests"]
+    when:
+    - input: "$(tasks.post-deployment-tests.results.test-status)"
+      operator: in
+      values: ["failed"]
+    workspaces:
+    - name: source
+      workspace: shared-data
+    - name: kubeconfig
+      workspace: k8s-credentials
+    params:
+    - name: target-namespace
+      value: $(params.target-namespace)
+    - name: regions
+      value: $(params.regions)
+    - name: rollback-strategy
+      value: "immediate"
+  
+  # Task 17: Cleanup
+  - name: cleanup
+    taskRef:
+      name: cleanup-resources
+    runAfter: ["post-deployment-tests", "rollback-on-failure"]
+    workspaces:
+    - name: source
+      workspace: shared-data
+    - name: kubeconfig
+      workspace: k8s-credentials
+    params:
+    - name: cleanup-namespaces
+      value: "integration-test,chaos-test"
+    - name: retain-logs
+      value: "true"
+  
+  finally:
+  - name: notify-results
+    taskRef:
+      name: notification-task
+    workspaces:
+    - name: source
+      workspace: shared-data
+    params:
+    - name: pipeline-status
+      value: "$(tasks.status)"
+    - name: git-revision
+      value: "$(params.git-revision)"
+    - name: image-reference
+      value: "$(params.image-reference):$(params.git-revision)"
+    - name: notification-channels
+      value: "slack,email"
+    - name: webhook-url
+      value: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+  
+  results:
+  - name: image-digest
+    description: Digest of the built image
+    value: $(tasks.build-image.results.IMAGE_DIGEST)
+  - name: deployment-status
+    description: Status of the deployment
+    value: $(tasks.multi-region-deploy.results.deployment-status)
+  - name: performance-metrics
+    description: Performance test results
+    value: $(tasks.load-testing.results.performance-metrics)
+  - name: security-scan-results
+    description: Security scan results
+    value: $(tasks.security-scan.results.scan-results)
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: code-quality-analysis
+  namespace: tekton-pipelines
+spec:
+  description: Comprehensive code quality analysis using multiple tools
+  params:
+  - name: source-path
+    type: string
+    description: Path to source code
+  - name: quality-gate-threshold
+    type: string
+    description: Quality gate threshold
+    default: "80"
+  workspaces:
+  - name: source
+    description: Source code workspace
+  steps:
+  - name: rustfmt-check
+    image: rust:1.70-slim
+    workingDir: $(workspaces.source.path)/$(params.source-path)
+    script: |
+      #!/bin/bash
+      set -e
+      
+      echo "Running rustfmt check..."
+      cargo fmt --check
+      
+      echo "Running clippy..."
+      cargo clippy -- -D warnings
+      
+      echo "Running audit..."
+      cargo install cargo-audit
+      cargo audit
+  
+  - name: code-coverage
+    image: rust:1.70-slim
+    workingDir: $(workspaces.source.path)/$(params.source-path)
+    script: |
+      #!/bin/bash
+      set -e
+      
+      echo "Installing tarpaulin..."
+      cargo install cargo-tarpaulin
+      
+      echo "Running coverage analysis..."
+      cargo tarpaulin --out Xml --output-dir coverage
+      
+      # Check coverage threshold
+      COVERAGE=$(grep -o 'line-rate="[^"]*"' coverage/cobertura.xml | head -1 | sed 's/line-rate="//;s/"//' | awk '{print $1 * 100}')
+      THRESHOLD=$(params.quality-gate-threshold)
+      
+      if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+        echo "Coverage $COVERAGE% is below threshold $THRESHOLD%"
+        exit 1
+      fi
+      
+      echo "Coverage: $COVERAGE% (threshold: $THRESHOLD%)"
+  
+  - name: complexity-analysis
+    image: rust:1.70-slim
+    workingDir: $(workspaces.source.path)/$(params.source-path)
+    script: |
+      #!/bin/bash
+      set -e
+      
+      echo "Installing complexity analysis tools..."
+      cargo install tokei
+      cargo install scc
+      
+      echo "Analyzing code complexity..."
+      tokei .
+      scc .
+  
+  results:
+  - name: quality-score
+    description: Overall quality score
+  - name: coverage-percentage
+    description: Code coverage percentage
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: security-scan
+  namespace: tekton-pipelines
+spec:
+  description: Comprehensive security scanning
+  params:
+  - name: source-path
+    type: string
+    description: Path to source code
+  - name: scan-type
+    type: string
+    description: Types of scans to perform
+    default: "sast,dependency,secrets"
+  workspaces:
+  - name: source
+    description: Source code workspace
+  steps:
+  - name: dependency-scan
+    image: rust:1.70-slim
+    workingDir: $(workspaces.source.path)/$(params.source-path)
+    script: |
+      #!/bin/bash
+      set -e
+      
+      echo "Running dependency vulnerability scan..."
+      cargo install cargo-audit
+      cargo audit --json > audit-results.json
+      
+      # Check for vulnerabilities
+      VULNS=$(jq '.vulnerabilities | length' audit-results.json)
+      if [ "$VULNS" -gt 0 ]; then
+        echo "Found $VULNS vulnerabilities:"
+        jq '.vulnerabilities' audit-results.json
+      else
+        echo "No vulnerabilities found"
+      fi
+  
+  - name: secrets-scan
+    image: trufflesecurity/trufflehog:latest
+    workingDir: $(workspaces.source.path)/$(params.source-path)
+    script: |
+      #!/bin/bash
+      set -e
+      
+      echo "Scanning for secrets..."
+      trufflehog filesystem . --json > secrets-results.json
+      
+      # Check for secrets
+      if [ -s secrets-results.json ]; then
+        echo "Secrets found:"
+        cat secrets-results.json
+        exit 1
+      else
+        echo "No secrets found"
+      fi
+  
+  - name: sast-scan
+    image: semgrep/semgrep:latest
+    workingDir: $(workspaces.source.path)/$(params.source-path)
+    script: |
+      #!/bin/bash
+      set -e
+      
+      echo "Running SAST scan..."
+      semgrep --config=auto --json --output=sast-results.json .
+      
+      # Check for high severity issues
+      HIGH_ISSUES=$(jq '[.results[] | select(.extra.severity == "ERROR")] | length' sast-results.json)
+      if [ "$HIGH_ISSUES" -gt 0 ]; then
+        echo "Found $HIGH_ISSUES high severity issues:"
+        jq '[.results[] | select(.extra.severity == "ERROR")]' sast-results.json
+        exit 1
+      else
+        echo "No high severity issues found"
+      fi
+  
+  results:
+  - name: scan-results
+    description: Security scan results summary
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: rust-build
+  namespace: tekton-pipelines
+spec:
+  description: Build Rust application with optimizations
+  params:
+  - name: source-path
+    type: string
+    description: Path to source code
+  - name: build-type
+    type: string
+    description: Build type (debug, release)
+    default: "release"
+  - name: target-arch
+    type: string
+    description: Target architecture
+    default: "x86_64-unknown-linux-musl"
+  workspaces:
+  - name: source
+    description: Source code workspace
+  steps:
+  - name: build
+    image: rust:1.70-slim
+    workingDir: $(workspaces.source.path)/$(params.source-path)
+    script: |
+      #!/bin/bash
+      set -e
+      
+      echo "Installing build dependencies..."
+      apt-get update && apt-get install -y musl-tools
+      rustup target add $(params.target-arch)
+      
+      echo "Building application..."
+      RUSTFLAGS="-C target-cpu=native" \
+      cargo build --$(params.build-type) --target $(params.target-arch)
+      
+      echo "Running tests..."
+      cargo test --$(params.build-type)
+      
+      echo "Copying binary..."
+      cp target/$(params.target-arch)/$(params.build-type)/performance-optimizer ./
+      
+      echo "Build completed successfully"
+  
+  - name: optimize
+    image: rust:1.70-slim
+    workingDir: $(workspaces.source.path)/$(params.source-path)
+    script: |
+      #!/bin/bash
+      set -e
+      
+      echo "Optimizing binary..."
+      strip ./performance-optimizer
+      
+      echo "Binary size:"
+      ls -lh ./performance-optimizer
+      
+      echo "Binary info:"
+      file ./performance-optimizer
+  
+  results:
+  - name: binary-size
+    description: Size of the built binary
+  - name: build-time
+    description: Build time in seconds
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: multi-region-deploy
+  namespace: tekton-pipelines
+spec:
+  description: Deploy to multiple regions with zero-downtime
+  params:
+  - name: IMAGE
+    type: string
+    description: Container image to deploy
+  - name: target-namespace
+    type: string
+    description: Target namespace
+  - name: regions
+    type: array
+    description: Target regions
+  - name: deployment-strategy
+    type: string
+    description: Deployment strategy
+    default: "blue-green"
+  - name: validation-timeout
+    type: string
+    description: Validation timeout
+    default: "300s"
+  workspaces:
+  - name: source
+    description: Source code workspace
+  - name: kubeconfig
+    description: Kubernetes credentials
+  steps:
+  - name: deploy-regions
+    image: bitnami/kubectl:latest
+    script: |
+      #!/bin/bash
+      set -e
+      
+      echo "Starting multi-region deployment..."
+      
+      # Copy kubeconfig
+      cp $(workspaces.kubeconfig.path)/config ~/.kube/config
+      
+      # Deploy to each region
+      for region in $(params.regions); do
+        echo "Deploying to region: $region"
+        
+        # Create blue-green deployment
+        if [ "$(params.deployment-strategy)" == "blue-green" ]; then
+          # Check current deployment color
+          CURRENT_COLOR=$(kubectl get deployment performance-optimizer-$region -n $(params.target-namespace) -o jsonpath='{.metadata.labels.color}' 2>/dev/null || echo "green")
+          NEW_COLOR=$([ "$CURRENT_COLOR" == "blue" ] && echo "green" || echo "blue")
+          
+          echo "Current color: $CURRENT_COLOR, New color: $NEW_COLOR"
+          
+          # Deploy new version
+          kubectl set image deployment/performance-optimizer-$region-$NEW_COLOR \
+            performance-optimizer=$(params.IMAGE) \
+            -n $(params.target-namespace)
+          
+          # Wait for rollout
+          kubectl rollout status deployment/performance-optimizer-$region-$NEW_COLOR \
+            -n $(params.target-namespace) --timeout=$(params.validation-timeout)
+          
+          # Validate deployment
+          kubectl run test-pod-$region-$NEW_COLOR --rm -i --restart=Never \
+            --image=alpine/curl:latest \
+            -- curl -f http://performance-optimizer-service-$region-$NEW_COLOR:8000/health
+          
+          # Switch traffic
+          kubectl patch service performance-optimizer-service-$region \
+            -n $(params.target-namespace) \
+            -p '{"spec":{"selector":{"color":"'$NEW_COLOR'"}}}'
+          
+          # Update deployment labels
+          kubectl label deployment performance-optimizer-$region-$NEW_COLOR \
+            -n $(params.target-namespace) color=$NEW_COLOR --overwrite
+          
+          echo "Successfully deployed to $region with $NEW_COLOR deployment"
+        else
+          # Rolling update
+          kubectl set image deployment/performance-optimizer-$region \
+            performance-optimizer=$(params.IMAGE) \
+            -n $(params.target-namespace)
+          
+          kubectl rollout status deployment/performance-optimizer-$region \
+            -n $(params.target-namespace) --timeout=$(params.validation-timeout)
+        fi
+      done
+      
+      echo "Multi-region deployment completed"
+  
+  - name: post-deploy-validation
+    image: alpine/curl:latest
+    script: |
+      #!/bin/bash
+      set -e
+      
+      echo "Running post-deployment validation..."
+      
+      for region in $(params.regions); do
+        echo "Validating $region deployment..."
+        
+        # Health check
+        for i in {1..10}; do
+          if curl -f https://$region.api.nockchain.com/health; then
+            echo "$region health check passed"
+            break
+          fi
+          echo "Attempt $i failed, retrying..."
+          sleep 10
+        done
+        
+        # Performance check
+        RESPONSE_TIME=$(curl -o /dev/null -s -w "%{time_total}" https://$region.api.nockchain.com/health)
+        echo "$region response time: ${RESPONSE_TIME}s"
+        
+        if (( $(echo "$RESPONSE_TIME > 0.1" | bc -l) )); then
+          echo "Warning: $region response time is high"
+        fi
+      done
+      
+      echo "Post-deployment validation completed"
+  
+  results:
+  - name: deployment-status
+    description: Overall deployment status
+  - name: deployed-regions
+    description: Successfully deployed regions
+---
+apiVersion: tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: nockchain-trigger-template
+  namespace: tekton-pipelines
+spec:
+  params:
+  - name: git-revision
+    description: Git revision
+  - name: git-commit-message
+    description: Git commit message
+  - name: git-commit-author
+    description: Git commit author
+  - name: git-repo-url
+    description: Git repository URL
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1beta1
+    kind: PipelineRun
+    metadata:
+      generateName: nockchain-performance-optimizer-
+      namespace: tekton-pipelines
+    spec:
+      pipelineRef:
+        name: nockchain-performance-optimizer-pipeline
+      params:
+      - name: git-url
+        value: $(tt.params.git-repo-url)
+      - name: git-revision
+        value: $(tt.params.git-revision)
+      - name: image-reference
+        value: nockchain/performance-optimizer
+      - name: target-namespace
+        value: nockchain
+      - name: deployment-strategy
+        value: blue-green
+      - name: performance-threshold
+        value: "25ms"
+      - name: regions
+        value: ["us-west-2", "us-east-1", "eu-west-1", "ap-southeast-1"]
+      - name: enable-chaos-testing
+        value: "true"
+      workspaces:
+      - name: shared-data
+        persistentVolumeClaim:
+          claimName: tekton-shared-pvc
+      - name: git-credentials
+        secret:
+          secretName: git-credentials
+      - name: docker-credentials
+        secret:
+          secretName: docker-credentials
+      - name: k8s-credentials
+        secret:
+          secretName: k8s-credentials
+      timeout: 2h
+---
+apiVersion: tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: nockchain-trigger-binding
+  namespace: tekton-pipelines
+spec:
+  params:
+  - name: git-revision
+    value: $(body.head_commit.id)
+  - name: git-commit-message
+    value: $(body.head_commit.message)
+  - name: git-commit-author
+    value: $(body.head_commit.author.name)
+  - name: git-repo-url
+    value: $(body.repository.clone_url)
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: nockchain-event-listener
+  namespace: tekton-pipelines
+spec:
+  serviceAccountName: tekton-triggers-sa
+  triggers:
+  - name: github-listener
+    interceptors:
+    - ref:
+        name: github
+      params:
+      - name: secretRef
+        value:
+          secretName: github-webhook-secret
+          secretKey: secret
+      - name: eventTypes
+        value: ["push", "pull_request"]
+    bindings:
+    - ref: nockchain-trigger-binding
+    template:
+      ref: nockchain-trigger-template
+  resources:
+    kubernetesResource:
+      spec:
+        template:
+          spec:
+            containers:
+            - name: tekton-triggers-eventlistener
+              resources:
+                requests:
+                  memory: "64Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "128Mi"
+                  cpu: "200m"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tekton-shared-pvc
+  namespace: tekton-pipelines
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: high-performance-ssd
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tekton-triggers-sa
+  namespace: tekton-pipelines
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tekton-triggers-role
+rules:
+- apiGroups: ["triggers.tekton.dev"]
+  resources: ["eventlisteners", "triggerbindings", "triggertemplates"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["tekton.dev"]
+  resources: ["pipelineruns", "pipelineresources", "taskruns"]
+  verbs: ["create", "get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tekton-triggers-binding
+subjects:
+- kind: ServiceAccount
+  name: tekton-triggers-sa
+  namespace: tekton-pipelines
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tekton-triggers-role
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: el-nockchain-event-listener
+  namespace: tekton-pipelines
+spec:
+  selector:
+    app.kubernetes.io/managed-by: EventListener
+    app.kubernetes.io/part-of: Triggers
+    eventlistener: nockchain-event-listener
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+  type: LoadBalancer

@@ -1,0 +1,736 @@
+// Nockchain Platform Database Schema
+// Enterprise-grade schema optimized for high-performance mining pool operations
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex", "postgresqlExtensions"]
+  binaryTargets   = ["native", "linux-musl", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pg_stat_statements, pg_trgm, btree_gin, btree_gist]
+}
+
+// ================================
+// USER MANAGEMENT
+// ================================
+
+model User {
+  id                String             @id @default(uuid()) @db.Uuid
+  email             String             @unique @db.VarChar(255)
+  username          String             @unique @db.VarChar(50)
+  passwordHash      String             @db.VarChar(255)
+  firstName         String?            @db.VarChar(100)
+  lastName          String?            @db.VarChar(100)
+  avatar            String?            @db.Text
+  role              UserRole           @default(USER)
+  tier              UserTier           @default(FREE)
+  isVerified        Boolean            @default(false)
+  twoFactorEnabled  Boolean            @default(false)
+  twoFactorSecret   String?            @db.VarChar(255)
+  preferences       Json               @default("{}")
+  lastLogin         DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  
+  // Relationships
+  wallets           UserWallet[]
+  sessions          UserSession[]
+  activities        UserActivity[]
+  notifications     Notification[]
+  miners            Miner[]
+  payouts           Payout[]
+  bridgeTransactions BridgeTransaction[]
+  kycVerification   KYCVerification?
+  stats             UserStats?
+  
+  @@map("users")
+  @@index([email])
+  @@index([username])
+  @@index([role])
+  @@index([tier])
+  @@index([isVerified])
+  @@index([createdAt])
+  @@index([lastLogin])
+}
+
+model UserWallet {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @db.Uuid
+  chain             Chain
+  address           String    @db.VarChar(255)
+  publicKey         String?   @db.Text
+  label             String?   @db.VarChar(100)
+  isDefault         Boolean   @default(false)
+  balance           Decimal   @default(0) @db.Decimal(18, 8)
+  lastBalanceUpdate DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  
+  // Relationships
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("user_wallets")
+  @@unique([userId, chain, address])
+  @@index([userId])
+  @@index([chain])
+  @@index([address])
+  @@index([isDefault])
+}
+
+model UserSession {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  sessionToken String   @unique @db.VarChar(255)
+  ipAddress    String   @db.Inet
+  userAgent    String   @db.Text
+  location     String?  @db.VarChar(255)
+  isActive     Boolean  @default(true)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  lastActivity DateTime @default(now())
+  
+  // Relationships
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("user_sessions")
+  @@index([userId])
+  @@index([sessionToken])
+  @@index([isActive])
+  @@index([expiresAt])
+}
+
+model UserActivity {
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String       @db.Uuid
+  type        ActivityType
+  description String       @db.Text
+  metadata    Json         @default("{}")
+  ipAddress   String       @db.Inet
+  userAgent   String       @db.Text
+  location    String?      @db.VarChar(255)
+  timestamp   DateTime     @default(now())
+  
+  // Relationships
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("user_activities")
+  @@index([userId])
+  @@index([type])
+  @@index([timestamp])
+}
+
+model UserStats {
+  id                   String   @id @default(uuid()) @db.Uuid
+  userId               String   @unique @db.Uuid
+  totalMiningRewards   Decimal  @default(0) @db.Decimal(18, 8)
+  totalTradingVolume   Decimal  @default(0) @db.Decimal(18, 8)
+  totalBridgeVolume    Decimal  @default(0) @db.Decimal(18, 8)
+  totalFeesPaid        Decimal  @default(0) @db.Decimal(18, 8)
+  activeMiningDays     Int      @default(0)
+  successfulTrades     Int      @default(0)
+  totalTransactions    Int      @default(0)
+  referralsCount       Int      @default(0)
+  accountAge           Int      @default(0) // days
+  lastActivity         DateTime @default(now())
+  timestamp            DateTime @default(now())
+  
+  // Relationships
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("user_stats")
+  @@index([userId])
+  @@index([lastActivity])
+}
+
+// ================================
+// MINING POOL
+// ================================
+
+model Miner {
+  id          String     @id @default(uuid()) @db.Uuid
+  userId      String?    @db.Uuid
+  address     String     @db.VarChar(255)
+  name        String?    @db.VarChar(100)
+  workerName  String     @db.VarChar(100)
+  ipAddress   String     @db.Inet
+  userAgent   String     @db.Text
+  isActive    Boolean    @default(false)
+  lastSeen    DateTime   @default(now())
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  
+  // Relationships
+  user        User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  shares      Share[]
+  payouts     Payout[]
+  stats       MiningStats[]
+  hardware    HardwareStats[]
+  blocks      Block[]
+  
+  @@map("miners")
+  @@unique([address, workerName])
+  @@index([userId])
+  @@index([address])
+  @@index([isActive])
+  @@index([lastSeen])
+  @@index([createdAt])
+}
+
+model Share {
+  id           String   @id @default(uuid()) @db.Uuid
+  minerId      String   @db.Uuid
+  difficulty   Decimal  @db.Decimal(20, 8)
+  target       String   @db.VarChar(255)
+  nonce        String   @db.VarChar(255)
+  timestamp    DateTime @default(now())
+  isValid      Boolean  @default(true)
+  blockHeight  Int?
+  rewardAmount Decimal? @db.Decimal(18, 8)
+  
+  // Relationships
+  miner        Miner    @relation(fields: [minerId], references: [id], onDelete: Cascade)
+  
+  @@map("shares")
+  @@index([minerId])
+  @@index([timestamp])
+  @@index([isValid])
+  @@index([blockHeight])
+  @@index([minerId, timestamp])
+}
+
+model Payout {
+  id             String        @id @default(uuid()) @db.Uuid
+  userId         String?       @db.Uuid
+  minerId        String        @db.Uuid
+  amount         Decimal       @db.Decimal(18, 8)
+  transactionHash String?      @db.VarChar(255)
+  status         PayoutStatus  @default(PENDING)
+  createdAt      DateTime      @default(now())
+  completedAt    DateTime?
+  failureReason  String?       @db.Text
+  
+  // Relationships
+  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  miner          Miner         @relation(fields: [minerId], references: [id], onDelete: Cascade)
+  
+  @@map("payouts")
+  @@index([userId])
+  @@index([minerId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([transactionHash])
+}
+
+model MiningStats {
+  id                String         @id @default(uuid()) @db.Uuid
+  minerId           String         @db.Uuid
+  hashrate          Decimal        @default(0) @db.Decimal(20, 8)
+  validShares       Int            @default(0)
+  staleShares       Int            @default(0)
+  invalidShares     Int            @default(0)
+  efficiency        Decimal        @default(0) @db.Decimal(5, 4) // 0.0000 to 1.0000
+  estimatedEarnings Decimal        @default(0) @db.Decimal(18, 8)
+  actualEarnings    Decimal        @default(0) @db.Decimal(18, 8)
+  uptime            Decimal        @default(0) @db.Decimal(5, 4) // 0.0000 to 1.0000
+  lastShareTime     DateTime?
+  period            StatsPeriod
+  timestamp         DateTime       @default(now())
+  
+  // Relationships
+  miner             Miner          @relation(fields: [minerId], references: [id], onDelete: Cascade)
+  
+  @@map("mining_stats")
+  @@unique([minerId, period, timestamp])
+  @@index([minerId])
+  @@index([period])
+  @@index([timestamp])
+  @@index([hashrate])
+}
+
+model PoolStats {
+  id               String      @id @default(uuid()) @db.Uuid
+  totalHashrate    Decimal     @default(0) @db.Decimal(20, 8)
+  activeMiners     Int         @default(0)
+  blocksFound      Int         @default(0)
+  totalShares      Int         @default(0)
+  validShares      Int         @default(0)
+  luck             Decimal     @default(1) @db.Decimal(10, 6)
+  effort           Decimal     @default(1) @db.Decimal(10, 6)
+  networkDifficulty Decimal    @db.Decimal(30, 8)
+  networkHashrate  Decimal     @db.Decimal(20, 8)
+  poolFee          Decimal     @db.Decimal(5, 4) // 0.0000 to 1.0000
+  payoutScheme     PayoutScheme @default(PPLNS)
+  minimumPayout    Decimal     @db.Decimal(18, 8)
+  timestamp        DateTime    @default(now())
+  
+  @@map("pool_stats")
+  @@index([timestamp])
+  @@index([activeMiners])
+  @@index([totalHashrate])
+}
+
+model Block {
+  id            String      @id @default(uuid()) @db.Uuid
+  height        Int         @unique
+  hash          String      @unique @db.VarChar(255)
+  previousHash  String      @db.VarChar(255)
+  timestamp     DateTime
+  difficulty    Decimal     @db.Decimal(30, 8)
+  reward        Decimal     @db.Decimal(18, 8)
+  foundBy       String?     @db.Uuid
+  confirmations Int         @default(0)
+  status        BlockStatus @default(PENDING)
+  effort        Decimal     @db.Decimal(10, 6)
+  luck          Decimal     @db.Decimal(10, 6)
+  
+  // Relationships
+  miner         Miner?      @relation(fields: [foundBy], references: [id], onDelete: SetNull)
+  
+  @@map("blocks")
+  @@index([height])
+  @@index([hash])
+  @@index([foundBy])
+  @@index([status])
+  @@index([timestamp])
+}
+
+model HardwareStats {
+  id               String    @id @default(uuid()) @db.Uuid
+  minerId          String    @db.Uuid
+  cpuUsage         Decimal   @db.Decimal(5, 2) // 0.00 to 100.00
+  memoryUsage      Decimal   @db.Decimal(5, 2) // 0.00 to 100.00
+  temperature      Decimal?  @db.Decimal(5, 2)
+  powerConsumption Decimal?  @db.Decimal(8, 2)
+  fanSpeed         Decimal?  @db.Decimal(8, 2)
+  hashrate         Decimal   @db.Decimal(20, 8)
+  acceptedShares   Int       @default(0)
+  rejectedShares   Int       @default(0)
+  errors           String[]  @default([])
+  warnings         String[]  @default([])
+  timestamp        DateTime  @default(now())
+  
+  // Relationships
+  miner            Miner     @relation(fields: [minerId], references: [id], onDelete: Cascade)
+  
+  @@map("hardware_stats")
+  @@index([minerId])
+  @@index([timestamp])
+}
+
+// ================================
+// CROSS-CHAIN BRIDGE
+// ================================
+
+model BridgeTransaction {
+  id                        String            @id @default(uuid()) @db.Uuid
+  userId                    String?           @db.Uuid
+  sourceChain               Chain
+  destinationChain          Chain
+  sourceAddress             String            @db.VarChar(255)
+  destinationAddress        String            @db.VarChar(255)
+  amount                    Decimal           @db.Decimal(18, 8)
+  fee                       Decimal           @db.Decimal(18, 8)
+  sourceTransactionHash     String?           @db.VarChar(255)
+  destinationTransactionHash String?          @db.VarChar(255)
+  status                    TransactionStatus @default(PENDING)
+  confirmations             Int               @default(0)
+  requiredConfirmations     Int               @default(6)
+  createdAt                 DateTime          @default(now())
+  processedAt               DateTime?
+  completedAt               DateTime?
+  failureReason             String?           @db.Text
+  estimatedTime             Int               // seconds
+  validatorSignatures       String[]          @default([])
+  requiredSignatures        Int               @default(5)
+  
+  // Relationships
+  user                      User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@map("bridge_transactions")
+  @@index([userId])
+  @@index([sourceChain])
+  @@index([destinationChain])
+  @@index([status])
+  @@index([createdAt])
+  @@index([sourceTransactionHash])
+  @@index([destinationTransactionHash])
+}
+
+model Validator {
+  id                 String   @id @default(uuid()) @db.Uuid
+  address            String   @unique @db.VarChar(255)
+  publicKey          String   @unique @db.Text
+  isActive           Boolean  @default(true)
+  stake              Decimal  @default(0) @db.Decimal(18, 8)
+  reputation         Decimal  @default(1) @db.Decimal(5, 4) // 0.0000 to 1.0000
+  lastActivity       DateTime @default(now())
+  signaturesProvided Int      @default(0)
+  uptime             Decimal  @default(1) @db.Decimal(5, 4) // 0.0000 to 1.0000
+  slashingEvents     Int      @default(0)
+  
+  @@map("validators")
+  @@index([address])
+  @@index([isActive])
+  @@index([reputation])
+  @@index([lastActivity])
+}
+
+model BridgeLiquidity {
+  id                  String   @id @default(uuid()) @db.Uuid
+  chain               Chain
+  totalLiquidity      Decimal  @default(0) @db.Decimal(18, 8)
+  availableLiquidity  Decimal  @default(0) @db.Decimal(18, 8)
+  lockedLiquidity     Decimal  @default(0) @db.Decimal(18, 8)
+  utilizationRate     Decimal  @default(0) @db.Decimal(5, 4) // 0.0000 to 1.0000
+  targetUtilization   Decimal  @default(0.8) @db.Decimal(5, 4) // 0.0000 to 1.0000
+  rebalanceThreshold  Decimal  @default(0.9) @db.Decimal(5, 4) // 0.0000 to 1.0000
+  lastRebalance       DateTime?
+  timestamp           DateTime @default(now())
+  
+  @@map("bridge_liquidity")
+  @@index([chain])
+  @@index([timestamp])
+}
+
+model DEXPool {
+  id            String   @id @default(cuid())
+  dex           DEXType
+  tokenA        String   @db.VarChar(100)
+  tokenB        String   @db.VarChar(100)
+  liquidity     Decimal  @default(0) @db.Decimal(18, 8)
+  volume24h     Decimal  @default(0) @db.Decimal(18, 8)
+  fees24h       Decimal  @default(0) @db.Decimal(18, 8)
+  apr           Decimal  @default(0) @db.Decimal(8, 4)
+  price         Decimal  @db.Decimal(18, 8)
+  priceChange24h Decimal @default(0) @db.Decimal(8, 4)
+  lastUpdate    DateTime @default(now())
+  
+  // Relationships
+  positions     LiquidityPosition[]
+  
+  @@map("dex_pools")
+  @@unique([dex, tokenA, tokenB])
+  @@index([dex])
+  @@index([tokenA, tokenB])
+  @@index([liquidity])
+  @@index([volume24h])
+}
+
+model LiquidityPosition {
+  id            String   @id @default(uuid()) @db.Uuid
+  poolId        String
+  dex           DEXType
+  tokenA        String   @db.VarChar(100)
+  tokenB        String   @db.VarChar(100)
+  amountA       Decimal  @db.Decimal(18, 8)
+  amountB       Decimal  @db.Decimal(18, 8)
+  lpTokens      Decimal  @db.Decimal(18, 8)
+  entryPrice    Decimal  @db.Decimal(18, 8)
+  currentPrice  Decimal  @db.Decimal(18, 8)
+  unrealizedPnL Decimal  @db.Decimal(18, 8)
+  feesEarned    Decimal  @default(0) @db.Decimal(18, 8)
+  impermanentLoss Decimal @default(0) @db.Decimal(18, 8)
+  createdAt     DateTime @default(now())
+  lastUpdate    DateTime @default(now())
+  
+  // Relationships
+  pool          DEXPool  @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  
+  @@map("liquidity_positions")
+  @@index([poolId])
+  @@index([dex])
+  @@index([createdAt])
+}
+
+model ArbitrageOpportunity {
+  id                String   @id @default(uuid()) @db.Uuid
+  sourceChain       Chain
+  destinationChain  Chain
+  sourcePrice       Decimal  @db.Decimal(18, 8)
+  destinationPrice  Decimal  @db.Decimal(18, 8)
+  priceDifference   Decimal  @db.Decimal(18, 8)
+  profitPercentage  Decimal  @db.Decimal(8, 4)
+  maxAmount         Decimal  @db.Decimal(18, 8)
+  estimatedProfit   Decimal  @db.Decimal(18, 8)
+  estimatedGasCost  Decimal  @db.Decimal(18, 8)
+  netProfit         Decimal  @db.Decimal(18, 8)
+  confidence        Decimal  @db.Decimal(5, 4) // 0.0000 to 1.0000
+  expiresAt         DateTime
+  createdAt         DateTime @default(now())
+  
+  @@map("arbitrage_opportunities")
+  @@index([sourceChain])
+  @@index([destinationChain])
+  @@index([profitPercentage])
+  @@index([expiresAt])
+  @@index([createdAt])
+}
+
+// ================================
+// KYC & COMPLIANCE
+// ================================
+
+model KYCVerification {
+  id              String       @id @default(uuid()) @db.Uuid
+  userId          String       @unique @db.Uuid
+  level           KYCLevel     @default(BASIC)
+  status          KYCStatus    @default(NOT_STARTED)
+  personalInfo    Json?
+  riskScore       Int?         @db.SmallInt
+  reviewedBy      String?      @db.Uuid
+  reviewedAt      DateTime?
+  rejectionReason String?      @db.Text
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  
+  // Relationships
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents       KYCDocument[]
+  
+  @@map("kyc_verifications")
+  @@index([userId])
+  @@index([status])
+  @@index([level])
+}
+
+model KYCDocument {
+  id              String          @id @default(uuid()) @db.Uuid
+  kycId           String          @db.Uuid
+  type            DocumentType
+  filename        String          @db.VarChar(255)
+  fileUrl         String          @db.Text
+  status          DocumentStatus  @default(PENDING)
+  reviewedBy      String?         @db.Uuid
+  reviewedAt      DateTime?
+  rejectionReason String?         @db.Text
+  expiresAt       DateTime?
+  createdAt       DateTime        @default(now())
+  
+  // Relationships
+  kyc             KYCVerification @relation(fields: [kycId], references: [id], onDelete: Cascade)
+  
+  @@map("kyc_documents")
+  @@index([kycId])
+  @@index([type])
+  @@index([status])
+}
+
+// ================================
+// NOTIFICATIONS & SYSTEM
+// ================================
+
+model Notification {
+  id         String               @id @default(uuid()) @db.Uuid
+  userId     String               @db.Uuid
+  type       NotificationType
+  title      String               @db.VarChar(255)
+  message    String               @db.Text
+  data       Json?
+  read       Boolean              @default(false)
+  priority   NotificationPriority @default(MEDIUM)
+  channel    NotificationChannel  @default(IN_APP)
+  sentAt     DateTime?
+  readAt     DateTime?
+  createdAt  DateTime             @default(now())
+  
+  // Relationships
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("notifications")
+  @@index([userId])
+  @@index([type])
+  @@index([read])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+model SecurityEvent {
+  id          String            @id @default(uuid()) @db.Uuid
+  type        SecurityEventType
+  severity    SecuritySeverity  @default(MEDIUM)
+  description String            @db.Text
+  details     Json              @default("{}")
+  affected    String[]          @default([])
+  resolved    Boolean           @default(false)
+  resolvedAt  DateTime?
+  resolvedBy  String?           @db.Uuid
+  createdAt   DateTime          @default(now())
+  
+  @@map("security_events")
+  @@index([type])
+  @@index([severity])
+  @@index([resolved])
+  @@index([createdAt])
+}
+
+model SystemConfig {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique @db.VarChar(255)
+  value     Json
+  category  String   @db.VarChar(100)
+  isPublic  Boolean  @default(false)
+  updatedBy String?  @db.Uuid
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+  
+  @@map("system_config")
+  @@index([key])
+  @@index([category])
+  @@index([isPublic])
+}
+
+// ================================
+// ENUMS
+// ================================
+
+enum UserRole {
+  USER
+  MINER
+  TRADER
+  ADMIN
+  ENTERPRISE
+}
+
+enum UserTier {
+  FREE
+  BASIC
+  PREMIUM
+  ENTERPRISE
+}
+
+enum Chain {
+  NOCKCHAIN
+  SOLANA
+  ETHEREUM
+}
+
+enum ActivityType {
+  LOGIN
+  LOGOUT
+  MINING_START
+  MINING_STOP
+  BRIDGE_TRANSACTION
+  TRADE_EXECUTED
+  WITHDRAWAL
+  DEPOSIT
+  SETTINGS_CHANGED
+  KYC_SUBMITTED
+  PASSWORD_CHANGED
+  TWO_FA_ENABLED
+  TWO_FA_DISABLED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum StatsPeriod {
+  HOUR
+  DAY
+  WEEK
+  MONTH
+}
+
+enum PayoutScheme {
+  PPS
+  PPLNS
+  SOLO
+  HYBRID
+}
+
+enum BlockStatus {
+  PENDING
+  CONFIRMED
+  ORPHANED
+}
+
+enum TransactionStatus {
+  PENDING
+  PROCESSING
+  CONFIRMED
+  FAILED
+  REFUNDED
+}
+
+enum DEXType {
+  ORCA
+  JUPITER
+  RAYDIUM
+  SERUM
+  SABER
+}
+
+enum KYCLevel {
+  BASIC
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum KYCStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum DocumentType {
+  PASSPORT
+  DRIVERS_LICENSE
+  NATIONAL_ID
+  UTILITY_BILL
+  BANK_STATEMENT
+}
+
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum NotificationType {
+  MINING_REWARD
+  PAYOUT_SENT
+  BRIDGE_COMPLETED
+  TRADE_EXECUTED
+  SECURITY_ALERT
+  MAINTENANCE
+  NEWS
+  REFERRAL_BONUS
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  PUSH
+  SMS
+}
+
+enum SecurityEventType {
+  SUSPICIOUS_TRANSACTION
+  LARGE_WITHDRAWAL
+  MULTIPLE_FAILED_ATTEMPTS
+  UNUSUAL_PATTERN
+  VALIDATOR_OFFLINE
+  SIGNATURE_MISMATCH
+  SLASHING_EVENT
+}
+
+enum SecuritySeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}

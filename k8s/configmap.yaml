@@ -1,0 +1,140 @@
+# ConfigMap for Nockchain mining pool configuration
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nockchain-config
+  namespace: nockchain
+data:
+  # Database configuration
+  POSTGRES_DB: "nockchain"
+  POSTGRES_HOST: "postgres-service"
+  POSTGRES_PORT: "5432"
+  
+  # Redis configuration
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  
+  # Mining pool configuration
+  POOL_NAME: "Nockchain Mining Pool"
+  POOL_FEE: "1.0"
+  BLOCK_TIME: "60"
+  DIFFICULTY_ADJUSTMENT: "2016"
+  
+  # Network configuration
+  NETWORK: "mainnet"
+  BLOCKCHAIN_RPC_URL: "https://rpc.nockchain.org"
+  
+  # Application configuration
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  
+  # Monitoring configuration
+  METRICS_ENABLED: "true"
+  PROMETHEUS_PORT: "9090"
+  
+  # WebSocket configuration
+  WS_HEARTBEAT_INTERVAL: "30000"
+  WS_MAX_CONNECTIONS: "10000"
+  
+  # Payout configuration
+  PAYOUT_SCHEME: "PPLNS"
+  MINIMUM_PAYOUT: "0.01"
+  PAYOUT_INTERVAL: "3600"
+  
+  # Security configuration
+  RATE_LIMIT_WINDOW: "60000"
+  RATE_LIMIT_MAX: "100"
+  
+  # Feature flags
+  ENABLE_MONITORING_DASHBOARD: "true"
+  ENABLE_API_DOCS: "true"
+  ENABLE_HEALTH_CHECKS: "true"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: nockchain
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    
+    scrape_configs:
+      - job_name: 'nockchain-web'
+        static_configs:
+          - targets: ['nockchain-web-service:3000']
+        metrics_path: '/api/metrics'
+        scrape_interval: 30s
+      
+      - job_name: 'nockchain-mining-pool'
+        static_configs:
+          - targets: ['nockchain-mining-pool-service:8080']
+        metrics_path: '/metrics'
+        scrape_interval: 15s
+      
+      - job_name: 'nockchain-monitoring'
+        static_configs:
+          - targets: ['nockchain-monitoring-service:3001']
+        metrics_path: '/metrics'
+        scrape_interval: 10s
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: nockchain
+data:
+  mining-pool-dashboard.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "Nockchain Mining Pool Dashboard",
+        "tags": ["nockchain", "mining"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Pool Hashrate",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "nockchain_pool_hashrate_total",
+                "legendFormat": "Total Hashrate"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "Active Miners",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "nockchain_active_miners_total",
+                "legendFormat": "Active Miners"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Pool Efficiency",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "nockchain_pool_efficiency_percentage",
+                "legendFormat": "Efficiency %"
+              }
+            ]
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "30s"
+      }
+    }

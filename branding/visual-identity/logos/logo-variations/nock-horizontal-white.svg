@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="280" height="60" viewBox="0 0 280 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="whiteGlow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Main "Nock=" Text in White -->
+  <text x="15" y="42" font-family="JetBrains Mono, monospace" font-size="36" font-weight="700" fill="#ffffff" filter="url(#whiteGlow)">Nock=</text>
+  
+  <!-- Tagline -->
+  <text x="140" y="35" font-family="JetBrains Mono, monospace" font-size="12" font-weight="400" fill="rgba(255,255,255,0.7)">PRECISION MINING</text>
+  <text x="140" y="50" font-family="JetBrains Mono, monospace" font-size="12" font-weight="400" fill="rgba(255,255,255,0.7)">TO DeFi</text>
+  
+  <!-- Precision indicators -->
+  <circle cx="260" cy="15" r="1.5" fill="#ffffff" opacity="0.8"/>
+  <circle cx="268" cy="15" r="1.5" fill="#ffffff" opacity="0.6"/>
+  <circle cx="276" cy="15" r="1.5" fill="#ffffff" opacity="0.4"/>
+  
+  <!-- Mathematical precision line -->
+  <line x1="15" y1="52" x2="130" y2="52" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+</svg>

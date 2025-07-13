@@ -1,0 +1,126 @@
+[package]
+name = "nock-optimizer"
+version = "1.0.0"
+edition = "2021"
+description = "Advanced NOCK mining optimization engine leveraging unique blockchain features"
+authors = ["NOCKCHAIN Team <dev@nockchain.org>"]
+license = "MIT"
+repository = "https://github.com/nockchain/nock-optimizer"
+keywords = ["blockchain", "mining", "optimization", "nock", "zk-proofs"]
+categories = ["algorithms", "cryptography", "mathematics"]
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+async-trait = "0.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = "1.3"
+
+# Time and date handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+log = "0.4"
+env_logger = "0.10"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Math and statistics
+nalgebra = "0.32"
+statrs = "0.16"
+num-bigint = "0.4"
+num-traits = "0.2"
+
+# Machine learning
+candle-core = "0.3"
+candle-nn = "0.3"
+linfa = "0.7"
+linfa-clustering = "0.7"
+smartcore = "0.3"
+
+# Cryptography and hashing
+blake3 = "1.5"
+sha2 = "0.10"
+ring = "0.17"
+curve25519-dalek = "4.0"
+
+# Network and RPC
+reqwest = { version = "0.11", features = ["json"] }
+hyper = { version = "0.14", features = ["full"] }
+tonic = "0.10"
+prost = "0.12"
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
+redis = { version = "0.24", features = ["tokio-comp"] }
+
+# Configuration
+config = "0.14"
+clap = { version = "4.0", features = ["derive"] }
+
+# System information
+sysinfo = "0.30"
+num_cpus = "1.16"
+
+# Performance monitoring
+metrics = "0.22"
+metrics-exporter-prometheus = "0.13"
+
+# ZK proofs and arithmetic
+ark-ff = "0.4"
+ark-ec = "0.4"
+ark-poly = "0.4"
+ark-std = "0.4"
+
+# WASM support for web integration
+wasm-bindgen = { version = "0.2", optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", optional = true }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.4"
+tempfile = "3.8"
+
+[features]
+default = ["ml", "crypto", "web"]
+ml = ["candle-core", "candle-nn", "linfa", "smartcore"]
+crypto = ["blake3", "sha2", "ring", "curve25519-dalek"]
+web = ["wasm-bindgen", "js-sys", "web-sys"]
+gpu = ["candle-core/cuda"]
+
+[[bin]]
+name = "nock-optimizer"
+path = "src/main.rs"
+
+[[bin]]
+name = "eon-monitor"
+path = "src/bin/eon-monitor.rs"
+
+[[bin]]
+name = "proof-power-calculator"
+path = "src/bin/proof-power-calculator.rs"
+
+[[example]]
+name = "mining_optimization_example"
+path = "examples/mining_optimization.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+overflow-checks = false
+
+[profile.dev]
+debug = true
+opt-level = 0
+
+[profile.bench]
+debug = true

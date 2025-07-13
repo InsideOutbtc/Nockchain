@@ -1,0 +1,221 @@
+# Ingress configuration for Nockchain mining pool
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nockchain-ingress
+  namespace: nockchain
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/websocket-services: "nockchain-web-service"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$remote_addr"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+spec:
+  tls:
+    - hosts:
+        - nockchain-pool.com
+        - www.nockchain-pool.com
+        - api.nockchain-pool.com
+        - monitoring.nockchain-pool.com
+        - grafana.nockchain-pool.com
+      secretName: nockchain-tls-secret
+  rules:
+    # Main web application
+    - host: nockchain-pool.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nockchain-web-service
+                port:
+                  number: 3000
+    
+    # WWW redirect
+    - host: www.nockchain-pool.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nockchain-web-service
+                port:
+                  number: 3000
+    
+    # API endpoints
+    - host: api.nockchain-pool.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nockchain-web-service
+                port:
+                  number: 3000
+    
+    # Monitoring dashboard
+    - host: monitoring.nockchain-pool.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nockchain-monitoring-service
+                port:
+                  number: 3001
+    
+    # Grafana dashboard
+    - host: grafana.nockchain-pool.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana-service
+                port:
+                  number: 3000
+
+---
+# Additional ingress for internal services (with authentication)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nockchain-internal-ingress
+  namespace: nockchain
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: "Nockchain Internal Services"
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+spec:
+  tls:
+    - hosts:
+        - prometheus.nockchain-pool.com
+        - internal.nockchain-pool.com
+      secretName: nockchain-internal-tls-secret
+  rules:
+    # Prometheus metrics
+    - host: prometheus.nockchain-pool.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus-service
+                port:
+                  number: 9090
+    
+    # Internal services dashboard
+    - host: internal.nockchain-pool.com
+      http:
+        paths:
+          - path: /mining-pool
+            pathType: Prefix
+            backend:
+              service:
+                name: nockchain-mining-pool-service
+                port:
+                  number: 8080
+
+---
+# Basic auth secret for internal services
+apiVersion: v1
+kind: Secret
+metadata:
+  name: basic-auth
+  namespace: nockchain
+type: Opaque
+data:
+  auth: YWRtaW46JGFwcjEkSDZ1c2g2Z2IkL0w3b2hlZWM5WkE4ZFhNL1NsVWYv  # admin:nockchain123
+
+---
+# Network policy for ingress traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nockchain-ingress-policy
+  namespace: nockchain
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from nginx ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000
+        - protocol: TCP
+          port: 3001
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 9090
+    
+    # Allow internal pod-to-pod communication
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 6379
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 3000
+        - protocol: TCP
+          port: 3001
+        - protocol: TCP
+          port: 9090
+  
+  egress:
+    # Allow all outbound traffic
+    - {}
+
+---
+# Rate limiting configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-rate-limit-config
+  namespace: nockchain
+data:
+  rate-limit.conf: |
+    # Mining API endpoints - higher limits
+    location ~ ^/api/v1/(stratum|mining) {
+        limit_req zone=mining burst=50 nodelay;
+        limit_req_status 429;
+    }
+    
+    # General API endpoints
+    location ~ ^/api {
+        limit_req zone=api burst=20 nodelay;
+        limit_req_status 429;
+    }
+    
+    # Dashboard and static content
+    location / {
+        limit_req zone=general burst=10 nodelay;
+        limit_req_status 429;
+    }

@@ -1,0 +1,54 @@
+{
+  "name": "@nockchain/solana-bridge",
+  "version": "1.0.0",
+  "description": "Enterprise-grade NOCK ↔ Solana bridge with military-grade security",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "anchor build",
+    "test": "anchor test",
+    "deploy": "anchor deploy",
+    "deploy:devnet": "anchor deploy --provider.cluster devnet",
+    "deploy:mainnet": "anchor deploy --provider.cluster mainnet-beta",
+    "lint": "eslint . --ext .ts",
+    "format": "prettier --write \"**/*.{ts,js,json}\"",
+    "type-check": "tsc --noEmit",
+    "upgrade": "anchor upgrade",
+    "verify": "anchor verify",
+    "generate-types": "anchor build && anchor test --skip-build"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.29.0",
+    "@solana/web3.js": "^1.87.6",
+    "@solana/spl-token": "^0.3.9",
+    "@solana/spl-associated-token-account": "^0.2.0",
+    "@solana/buffer-layout": "^4.0.1",
+    "bn.js": "^5.2.1",
+    "borsh": "^0.7.0",
+    "bs58": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.1",
+    "@types/bs58": "^4.0.1",
+    "@types/chai": "^4.3.0",
+    "@types/mocha": "^9.0.0",
+    "@types/node": "^20.10.5",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "chai": "^4.3.4",
+    "eslint": "^8.56.0",
+    "mocha": "^9.0.3",
+    "prettier": "^3.1.1",
+    "ts-mocha": "^10.0.0",
+    "typescript": "^5.3.3"
+  },
+  "keywords": [
+    "solana",
+    "bridge",
+    "cross-chain",
+    "nockchain",
+    "defi",
+    "smart-contracts"
+  ],
+  "author": "Nockchain Development Team",
+  "license": "MIT"
+}

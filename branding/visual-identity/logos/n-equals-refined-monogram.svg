@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Refined Monogram Gradient -->
+    <linearGradient id="monogramGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+      <stop offset="60%" style="stop-color:#cacaca;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00ff88;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Professional Container Background -->
+    <linearGradient id="containerBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0a0a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1a1a1a;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Subtle Precision Glow -->
+    <filter id="monogramGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Professional Container -->
+  <rect width="64" height="64" rx="12" fill="url(#containerBg)" 
+        stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+  
+  <!-- Monogram "N=" with Mathematical Precision -->
+  <text x="32" y="42" font-family="JetBrains Mono, monospace" font-size="24" font-weight="700" 
+        fill="url(#monogramGradient)" text-anchor="middle" filter="url(#monogramGlow)"
+        letter-spacing="-0.05em">N=</text>
+  
+  <!-- Precision Dots - Subtle Mathematical Accents -->
+  <g transform="translate(32, 52)" opacity="0.4">
+    <circle cx="-6" cy="0" r="0.8" fill="#00ff88"/>
+    <circle cx="0" cy="0" r="0.8" fill="#00ff88"/>
+    <circle cx="6" cy="0" r="0.8" fill="#00ff88"/>
+  </g>
+  
+  <!-- Professional Corner Accent -->
+  <rect x="52" y="52" width="8" height="1" fill="#00ff88" opacity="0.3" rx="0.5"/>
+</svg>

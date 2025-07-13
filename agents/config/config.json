@@ -1,0 +1,159 @@
+{
+  "agents": {
+    "marketing": {
+      "enabled": true,
+      "workspace": "./workspaces/marketing",
+      "schedule": "0 9 * * *",
+      "priority": "high",
+      "tasks": [
+        "content_creation",
+        "market_analysis", 
+        "campaign_management",
+        "social_media_management",
+        "community_engagement",
+        "performance_tracking"
+      ],
+      "capabilities": [
+        "strategic_planning",
+        "content_generation",
+        "market_research",
+        "brand_management",
+        "analytics"
+      ],
+      "resources": {
+        "max_memory": "2GB",
+        "max_cpu": "2 cores",
+        "timeout": "30m"
+      }
+    },
+    "research": {
+      "enabled": true,
+      "workspace": "./workspaces/research",
+      "schedule": "0 10 * * *",
+      "priority": "high",
+      "tasks": [
+        "market_research",
+        "technology_analysis",
+        "user_research",
+        "competitive_intelligence",
+        "trend_analysis",
+        "data_analysis"
+      ],
+      "capabilities": [
+        "data_collection",
+        "analysis",
+        "report_generation",
+        "trend_identification",
+        "forecasting"
+      ],
+      "resources": {
+        "max_memory": "4GB",
+        "max_cpu": "4 cores", 
+        "timeout": "45m"
+      }
+    },
+    "feature_planning": {
+      "enabled": true,
+      "workspace": "./workspaces/feature-planning",
+      "schedule": "0 11 * * *",
+      "priority": "high",
+      "tasks": [
+        "roadmap_planning",
+        "technical_specs",
+        "resource_estimation",
+        "risk_assessment",
+        "integration_planning",
+        "timeline_management"
+      ],
+      "capabilities": [
+        "product_strategy",
+        "technical_planning",
+        "project_management",
+        "risk_analysis",
+        "resource_planning"
+      ],
+      "resources": {
+        "max_memory": "3GB",
+        "max_cpu": "3 cores",
+        "timeout": "60m"
+      }
+    }
+  },
+  "coordination": {
+    "enabled": true,
+    "communication_interval": "1h",
+    "shared_context": true,
+    "cross_agent_collaboration": true,
+    "message_queue": {
+      "type": "redis",
+      "host": "localhost", 
+      "port": 6379,
+      "db": 1
+    },
+    "shared_storage": {
+      "type": "filesystem",
+      "path": "./shared/data"
+    }
+  },
+  "security": {
+    "api_key_required": true,
+    "rate_limiting": {
+      "enabled": true,
+      "requests_per_minute": 100
+    },
+    "encryption": {
+      "enabled": true,
+      "algorithm": "AES-256-GCM"
+    },
+    "audit_logging": {
+      "enabled": true,
+      "level": "detailed"
+    }
+  },
+  "monitoring": {
+    "metrics_collection": true,
+    "performance_tracking": true,
+    "health_checks": {
+      "interval": "30s",
+      "timeout": "10s"
+    },
+    "alerting": {
+      "enabled": true,
+      "channels": ["slack", "email"]
+    }
+  },
+  "integrations": {
+    "nock_bridge_api": {
+      "enabled": true,
+      "endpoint": "http://localhost:8080/api/v1",
+      "auth_type": "bearer_token"
+    },
+    "external_apis": {
+      "coingecko": {
+        "enabled": true,
+        "rate_limit": "100/minute"
+      },
+      "twitter": {
+        "enabled": false,
+        "api_version": "v2"
+      },
+      "github": {
+        "enabled": true,
+        "org": "nockchain"
+      }
+    }
+  },
+  "deployment": {
+    "environment": "production",
+    "auto_scaling": {
+      "enabled": true,
+      "min_instances": 1,
+      "max_instances": 5
+    },
+    "backup": {
+      "enabled": true,
+      "interval": "daily",
+      "retention": "30d"
+    }
+  }
+}

@@ -1,0 +1,216 @@
+# AlertManager configuration for Nockchain mining pool alerts
+
+global:
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'nockchain-alerts@yourpool.com'
+  smtp_auth_username: 'your-email@gmail.com'
+  smtp_auth_password: 'your-app-password'
+
+# Templates for custom alert formatting
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+route:
+  group_by: ['alertname', 'severity', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'default-receiver'
+  
+  routes:
+    # Critical alerts - immediate notification via multiple channels
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 10s
+      repeat_interval: 1h
+      
+    # Warning alerts - standard notification
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_wait: 30s
+      repeat_interval: 4h
+      
+    # Info alerts - low priority
+    - match:
+        severity: info
+      receiver: 'info-alerts'
+      group_wait: 2m
+      repeat_interval: 12h
+
+    # Business critical alerts
+    - match:
+        service: business
+      receiver: 'business-alerts'
+      group_wait: 15s
+      repeat_interval: 2h
+
+    # Infrastructure alerts
+    - match:
+        service: infrastructure
+      receiver: 'infrastructure-alerts'
+      group_wait: 20s
+      repeat_interval: 3h
+
+receivers:
+  # Default receiver
+  - name: 'default-receiver'
+    email_configs:
+      - to: 'admin@yourpool.com'
+        subject: '[Nockchain] {{ .GroupLabels.alertname }} - {{ .GroupLabels.severity }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Severity: {{ .Labels.severity }}
+          Service: {{ .Labels.service }}
+          Time: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ end }}
+
+  # Critical alerts - multiple notification channels
+  - name: 'critical-alerts'
+    email_configs:
+      - to: 'admin@yourpool.com,ops@yourpool.com'
+        subject: '🚨 [CRITICAL] Nockchain Alert: {{ .GroupLabels.alertname }}'
+        html: |
+          <h2 style="color: #e53e3e;">🚨 Critical Alert</h2>
+          {{ range .Alerts }}
+          <div style="border-left: 4px solid #e53e3e; padding: 10px; margin: 10px 0; background: #fed7d7;">
+            <h3>{{ .Annotations.summary }}</h3>
+            <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+            <p><strong>Severity:</strong> {{ .Labels.severity }}</p>
+            <p><strong>Service:</strong> {{ .Labels.service }}</p>
+            <p><strong>Started:</strong> {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+          </div>
+          {{ end }}
+    
+    slack_configs:
+      - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+        channel: '#critical-alerts'
+        username: 'Nockchain AlertManager'
+        icon_emoji: ':rotating_light:'
+        color: 'danger'
+        title: '🚨 Critical Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          *Service:* {{ .Labels.service }}
+          *Started:* {{ .StartsAt.Format "15:04:05" }}
+          {{ end }}
+
+    webhook_configs:
+      - url: 'http://monitoring-service:3001/webhook/alerts'
+        send_resolved: true
+
+  # Warning alerts
+  - name: 'warning-alerts'
+    email_configs:
+      - to: 'admin@yourpool.com'
+        subject: '⚠️ [WARNING] Nockchain Alert: {{ .GroupLabels.alertname }}'
+        html: |
+          <h2 style="color: #d69e2e;">⚠️ Warning Alert</h2>
+          {{ range .Alerts }}
+          <div style="border-left: 4px solid #d69e2e; padding: 10px; margin: 10px 0; background: #faf089;">
+            <h3>{{ .Annotations.summary }}</h3>
+            <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+            <p><strong>Service:</strong> {{ .Labels.service }}</p>
+            <p><strong>Started:</strong> {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+          </div>
+          {{ end }}
+
+    slack_configs:
+      - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+        channel: '#alerts'
+        username: 'Nockchain AlertManager'
+        icon_emoji: ':warning:'
+        color: 'warning'
+        title: '⚠️ Warning: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          {{ end }}
+
+  # Info alerts
+  - name: 'info-alerts'
+    email_configs:
+      - to: 'ops@yourpool.com'
+        subject: 'ℹ️ [INFO] Nockchain Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Info: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Service: {{ .Labels.service }}
+          Time: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ end }}
+
+  # Business alerts
+  - name: 'business-alerts'
+    email_configs:
+      - to: 'admin@yourpool.com,business@yourpool.com'
+        subject: '💼 [BUSINESS] Nockchain Alert: {{ .GroupLabels.alertname }}'
+        html: |
+          <h2 style="color: #3182ce;">💼 Business Alert</h2>
+          {{ range .Alerts }}
+          <div style="border-left: 4px solid #3182ce; padding: 10px; margin: 10px 0; background: #bee3f8;">
+            <h3>{{ .Annotations.summary }}</h3>
+            <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+            <p><strong>Started:</strong> {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+          </div>
+          {{ end }}
+
+    slack_configs:
+      - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+        channel: '#business-alerts'
+        username: 'Nockchain AlertManager'
+        icon_emoji: ':chart_with_upwards_trend:'
+        color: '#3182ce'
+        title: '💼 Business Alert: {{ .GroupLabels.alertname }}'
+
+  # Infrastructure alerts
+  - name: 'infrastructure-alerts'
+    email_configs:
+      - to: 'ops@yourpool.com,infra@yourpool.com'
+        subject: '🔧 [INFRA] Nockchain Alert: {{ .GroupLabels.alertname }}'
+        html: |
+          <h2 style="color: #805ad5;">🔧 Infrastructure Alert</h2>
+          {{ range .Alerts }}
+          <div style="border-left: 4px solid #805ad5; padding: 10px; margin: 10px 0; background: #e9d8fd;">
+            <h3>{{ .Annotations.summary }}</h3>
+            <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+            <p><strong>Started:</strong> {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+          </div>
+          {{ end }}
+
+    slack_configs:
+      - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+        channel: '#infrastructure'
+        username: 'Nockchain AlertManager'
+        icon_emoji: ':gear:'
+        color: '#805ad5'
+        title: '🔧 Infrastructure Alert: {{ .GroupLabels.alertname }}'
+
+# Inhibition rules to prevent alert spam
+inhibit_rules:
+  # If a service is down, don't send other alerts for that service
+  - source_match:
+      alertname: 'ServiceUnavailable'
+    target_match:
+      service: '.*'
+    equal: ['service']
+
+  # If system CPU is critical, don't send memory warnings
+  - source_match:
+      alertname: 'HighCPUUsage'
+      severity: 'critical'
+    target_match:
+      alertname: 'ModerateMemoryUsage'
+      severity: 'warning'
+
+  # If mining pool is down, don't send pool-specific alerts
+  - source_match:
+      alertname: 'MiningPoolDown'
+    target_match_re:
+      alertname: '(LowPoolHashrate|NoActiveMiners|LowPoolEfficiency)'

@@ -1,0 +1,795 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cost-optimization
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubecost
+  namespace: cost-optimization
+  labels:
+    app: kubecost
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubecost
+  template:
+    metadata:
+      labels:
+        app: kubecost
+    spec:
+      containers:
+      - name: kubecost-frontend
+        image: kubecost/frontend:v1.103.3
+        ports:
+        - containerPort: 9090
+          name: http
+        env:
+        - name: PROMETHEUS_SERVER_ENDPOINT
+          value: "http://prometheus.monitoring.svc.cluster.local:9090"
+        - name: COST_ANALYZER_SERVICE_PORT
+          value: "9003"
+        - name: GRAFANA_URL
+          value: "http://grafana.monitoring.svc.cluster.local:3000"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 9090
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 9090
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      
+      - name: kubecost-cost-analyzer
+        image: kubecost/cost-analyzer:v1.103.3
+        ports:
+        - containerPort: 9003
+          name: http
+        - containerPort: 9090
+          name: metrics
+        env:
+        - name: PROMETHEUS_SERVER_ENDPOINT
+          value: "http://prometheus.monitoring.svc.cluster.local:9090"
+        - name: CLOUD_PROVIDER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: cloud-provider-keys
+              key: aws-api-key
+        - name: CLUSTER_ID
+          value: "nockchain-prod"
+        - name: CURRENCY
+          value: "USD"
+        - name: SPOT_LABEL
+          value: "node.kubernetes.io/instance-type"
+        - name: SPOT_DATA_REGION
+          value: "us-west-2"
+        - name: PROJECT_ID
+          value: "nockchain-production"
+        - name: KUBECOST_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: kubecost-token
+              key: token
+        - name: PV_ENABLED
+          value: "true"
+        - name: NETWORK_COSTS_ENABLED
+          value: "true"
+        - name: SERVICE_ACCOUNT_NAME
+          value: "kubecost-cost-analyzer"
+        - name: EMIT_KSM_V1_METRICS
+          value: "false"
+        - name: EMIT_KSM_V1_METRICS_ONLY
+          value: "false"
+        - name: CACHE_WARMING_ENABLED
+          value: "true"
+        - name: SAVINGS_ENABLED
+          value: "true"
+        - name: KUBECOST_COST_ANALYZER_SCRAPE_INTERVAL
+          value: "60s"
+        - name: KUBECOST_COST_ANALYZER_MAX_QUERY_CONCURRENCY
+          value: "5"
+        - name: ALLOCATION_CACHE_TTL
+          value: "10m"
+        - name: ASSET_CACHE_TTL
+          value: "1h"
+        - name: CLOUD_COST_ENABLED
+          value: "true"
+        - name: CLOUD_COST_REFRESH_RATE_HOURS
+          value: "6"
+        - name: RECONCILE_ENABLED
+          value: "true"
+        - name: RECONCILE_INTERVAL_HOURS
+          value: "24"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: persistent-configs
+          mountPath: /var/configs
+        - name: persistent-data
+          mountPath: /var/kubecost
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 9003
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 9003
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      
+      - name: kubecost-cluster-controller
+        image: kubecost/cluster-controller:v0.1.3
+        ports:
+        - containerPort: 9731
+          name: http
+        env:
+        - name: CLUSTER_ID
+          value: "nockchain-prod"
+        - name: KUBECOST_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: kubecost-token
+              key: token
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 9731
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 9731
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      
+      volumes:
+      - name: persistent-configs
+        persistentVolumeClaim:
+          claimName: kubecost-configs
+      - name: persistent-data
+        persistentVolumeClaim:
+          claimName: kubecost-data
+      
+      serviceAccountName: kubecost-cost-analyzer
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubecost-cost-analyzer
+  namespace: cost-optimization
+  labels:
+    app: kubecost
+spec:
+  selector:
+    app: kubecost
+  ports:
+  - port: 9090
+    targetPort: 9090
+    name: frontend
+  - port: 9003
+    targetPort: 9003
+    name: cost-analyzer
+  - port: 9731
+    targetPort: 9731
+    name: cluster-controller
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kubecost-configs
+  namespace: cost-optimization
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: high-performance-ssd
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kubecost-data
+  namespace: cost-optimization
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: high-performance-ssd
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubecost-cost-analyzer
+  namespace: cost-optimization
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubecost-cost-analyzer
+rules:
+- apiGroups: [""]
+  resources: ["pods", "nodes", "services", "resourcequotas", "replicationcontrollers", "limitranges", "persistentvolumeclaims", "persistentvolumes", "namespaces", "endpoints"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["extensions"]
+  resources: ["daemonsets", "deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["statefulsets", "deployments", "daemonsets", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources: ["cronjobs", "jobs"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["autoscaling"]
+  resources: ["horizontalpodautoscalers"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["policy"]
+  resources: ["poddisruptionbudgets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["nodes", "pods"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubecost-cost-analyzer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubecost-cost-analyzer
+subjects:
+- kind: ServiceAccount
+  name: kubecost-cost-analyzer
+  namespace: cost-optimization
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloud-provider-keys
+  namespace: cost-optimization
+type: Opaque
+data:
+  aws-api-key: QUtJQUlPU0ZPRE5ON0VYQU1QTEU=  # AWS API Key
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kubecost-token
+  namespace: cost-optimization
+type: Opaque
+data:
+  token: a3ViZWNvc3QtdG9rZW4tZXhhbXBsZQ==  # Kubecost token
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resource-optimizer
+  namespace: cost-optimization
+  labels:
+    app: resource-optimizer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: resource-optimizer
+  template:
+    metadata:
+      labels:
+        app: resource-optimizer
+    spec:
+      containers:
+      - name: resource-optimizer
+        image: alpine/k8s:1.27.3
+        command:
+        - /bin/sh
+        - -c
+        - |
+          #!/bin/bash
+          set -e
+          
+          echo "Starting Resource Optimizer"
+          
+          while true; do
+            echo "$(date): Running resource optimization cycle"
+            
+            # 1. Identify underutilized resources
+            echo "Analyzing resource utilization..."
+            
+            # Get pods with low CPU utilization
+            kubectl top pods --all-namespaces --no-headers | awk '{
+              if ($3 ~ /[0-9]+m/ && $3 < 50) {
+                print "Low CPU usage: " $1 "/" $2 " - " $3
+              }
+            }'
+            
+            # Get pods with low memory utilization
+            kubectl top pods --all-namespaces --no-headers | awk '{
+              if ($4 ~ /[0-9]+Mi/ && $4 < 100) {
+                print "Low Memory usage: " $1 "/" $2 " - " $4
+              }
+            }'
+            
+            # 2. Identify unused resources
+            echo "Identifying unused resources..."
+            
+            # Find unused ConfigMaps
+            kubectl get configmaps --all-namespaces -o json | jq -r '.items[] | select(.metadata.name != "kube-root-ca.crt") | "\(.metadata.namespace)/\(.metadata.name)"' | while read cm; do
+              namespace=$(echo $cm | cut -d'/' -f1)
+              name=$(echo $cm | cut -d'/' -f2)
+              
+              # Check if configmap is used by any pod
+              if ! kubectl get pods -n $namespace -o json | jq -r '.items[].spec.volumes[]?.configMap?.name' | grep -q "^$name$"; then
+                echo "Unused ConfigMap: $cm"
+              fi
+            done
+            
+            # Find unused Secrets
+            kubectl get secrets --all-namespaces -o json | jq -r '.items[] | select(.type != "kubernetes.io/service-account-token") | "\(.metadata.namespace)/\(.metadata.name)"' | while read secret; do
+              namespace=$(echo $secret | cut -d'/' -f1)
+              name=$(echo $secret | cut -d'/' -f2)
+              
+              # Check if secret is used by any pod
+              if ! kubectl get pods -n $namespace -o json | jq -r '.items[].spec.volumes[]?.secret?.secretName' | grep -q "^$name$"; then
+                if ! kubectl get pods -n $namespace -o json | jq -r '.items[].spec.containers[].env[]?.valueFrom?.secretKeyRef?.name' | grep -q "^$name$"; then
+                  echo "Unused Secret: $secret"
+                fi
+              fi
+            done
+            
+            # 3. Identify overprovisioned resources
+            echo "Identifying overprovisioned resources..."
+            
+            # Get deployments with high resource requests but low usage
+            kubectl get deployments --all-namespaces -o json | jq -r '.items[] | "\(.metadata.namespace)/\(.metadata.name)"' | while read deployment; do
+              namespace=$(echo $deployment | cut -d'/' -f1)
+              name=$(echo $deployment | cut -d'/' -f2)
+              
+              # Get resource requests
+              cpu_request=$(kubectl get deployment $name -n $namespace -o json | jq -r '.spec.template.spec.containers[0].resources.requests.cpu // "0"')
+              memory_request=$(kubectl get deployment $name -n $namespace -o json | jq -r '.spec.template.spec.containers[0].resources.requests.memory // "0"')
+              
+              echo "Deployment $deployment - CPU request: $cpu_request, Memory request: $memory_request"
+            done
+            
+            # 4. Generate optimization recommendations
+            echo "Generating optimization recommendations..."
+            
+            # Create optimization report
+            cat > /tmp/optimization-report.json <<EOF
+            {
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "cluster": "nockchain-prod",
+              "recommendations": [
+                {
+                  "type": "resource_rightsizing",
+                  "description": "Optimize CPU and memory requests based on actual usage",
+                  "potential_savings": "30-50%",
+                  "priority": "high"
+                },
+                {
+                  "type": "spot_instances",
+                  "description": "Use spot instances for non-critical workloads",
+                  "potential_savings": "60-70%",
+                  "priority": "medium"
+                },
+                {
+                  "type": "storage_optimization",
+                  "description": "Use appropriate storage classes and cleanup unused volumes",
+                  "potential_savings": "20-30%",
+                  "priority": "medium"
+                },
+                {
+                  "type": "reserved_instances",
+                  "description": "Use reserved instances for predictable workloads",
+                  "potential_savings": "40-60%",
+                  "priority": "low"
+                }
+              ]
+            }
+          EOF
+            
+            # 5. Apply automatic optimizations
+            echo "Applying automatic optimizations..."
+            
+            # Update resource requests for development deployments
+            kubectl get deployments -n development -o json | jq -r '.items[] | select(.metadata.labels.environment == "development") | .metadata.name' | while read deployment; do
+              echo "Optimizing development deployment: $deployment"
+              
+              # Reduce resource requests by 50% for development
+              kubectl patch deployment $deployment -n development -p '{
+                "spec": {
+                  "template": {
+                    "spec": {
+                      "containers": [
+                        {
+                          "name": "performance-optimizer",
+                          "resources": {
+                            "requests": {
+                              "cpu": "250m",
+                              "memory": "512Mi"
+                            },
+                            "limits": {
+                              "cpu": "500m",
+                              "memory": "1Gi"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }'
+            done
+            
+            # 6. Cleanup unused resources
+            echo "Cleaning up unused resources..."
+            
+            # Remove failed pods older than 1 hour
+            kubectl get pods --all-namespaces --field-selector=status.phase=Failed -o json | jq -r '.items[] | select(.metadata.creationTimestamp < (now - 3600 | strftime("%Y-%m-%dT%H:%M:%SZ"))) | "\(.metadata.namespace) \(.metadata.name)"' | while read namespace name; do
+              echo "Removing failed pod: $namespace/$name"
+              kubectl delete pod $name -n $namespace
+            done
+            
+            # Remove completed jobs older than 24 hours
+            kubectl get jobs --all-namespaces --field-selector=status.conditions[0].type=Complete -o json | jq -r '.items[] | select(.metadata.creationTimestamp < (now - 86400 | strftime("%Y-%m-%dT%H:%M:%SZ"))) | "\(.metadata.namespace) \(.metadata.name)"' | while read namespace name; do
+              echo "Removing completed job: $namespace/$name"
+              kubectl delete job $name -n $namespace
+            done
+            
+            # 7. Generate cost report
+            echo "Generating cost report..."
+            
+            # Calculate estimated costs
+            TOTAL_NODES=$(kubectl get nodes --no-headers | wc -l)
+            TOTAL_PODS=$(kubectl get pods --all-namespaces --no-headers | wc -l)
+            TOTAL_VOLUMES=$(kubectl get pv --no-headers | wc -l)
+            
+            # Estimate monthly costs (rough calculation)
+            NODE_COST_PER_HOUR=0.096  # m5.large instance
+            STORAGE_COST_PER_GB_MONTH=0.10  # gp3 storage
+            
+            MONTHLY_NODE_COST=$(echo "$TOTAL_NODES * $NODE_COST_PER_HOUR * 24 * 30" | bc)
+            TOTAL_STORAGE_GB=$(kubectl get pv --no-headers -o custom-columns=CAPACITY:.spec.capacity.storage | sed 's/Gi//' | awk '{sum+=$1} END {print sum}')
+            MONTHLY_STORAGE_COST=$(echo "$TOTAL_STORAGE_GB * $STORAGE_COST_PER_GB_MONTH" | bc)
+            TOTAL_MONTHLY_COST=$(echo "$MONTHLY_NODE_COST + $MONTHLY_STORAGE_COST" | bc)
+            
+            cat > /tmp/cost-report.json <<EOF
+            {
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "cluster": "nockchain-prod",
+              "resources": {
+                "nodes": $TOTAL_NODES,
+                "pods": $TOTAL_PODS,
+                "volumes": $TOTAL_VOLUMES,
+                "storage_gb": $TOTAL_STORAGE_GB
+              },
+              "estimated_monthly_costs": {
+                "compute": "$MONTHLY_NODE_COST",
+                "storage": "$MONTHLY_STORAGE_COST",
+                "total": "$TOTAL_MONTHLY_COST"
+              },
+              "optimization_potential": {
+                "rightsizing": "30%",
+                "spot_instances": "60%",
+                "unused_resources": "20%",
+                "total_potential_savings": "50%"
+              }
+            }
+          EOF
+            
+            echo "Cost report generated: /tmp/cost-report.json"
+            cat /tmp/cost-report.json
+            
+            # 8. Send alerts for high costs
+            if (( $(echo "$TOTAL_MONTHLY_COST > 10000" | bc -l) )); then
+              echo "HIGH COST ALERT: Monthly cost exceeds $10,000"
+              
+              # Send notification
+              curl -X POST -H 'Content-type: application/json' \
+                --data '{"text":"🚨 HIGH COST ALERT: Monthly infrastructure cost is estimated at $'"$TOTAL_MONTHLY_COST"'. Please review cost optimization recommendations."}' \
+                https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+            fi
+            
+            echo "Resource optimization cycle completed"
+            
+            # Wait 1 hour before next cycle
+            sleep 3600
+          done
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+        volumeMounts:
+        - name: reports
+          mountPath: /tmp/reports
+      volumes:
+      - name: reports
+        emptyDir: {}
+      serviceAccountName: resource-optimizer
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: resource-optimizer
+  namespace: cost-optimization
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: resource-optimizer
+rules:
+- apiGroups: [""]
+  resources: ["pods", "nodes", "services", "configmaps", "secrets", "persistentvolumes", "persistentvolumeclaims", "namespaces"]
+  verbs: ["get", "list", "watch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "daemonsets", "statefulsets"]
+  verbs: ["get", "list", "watch", "patch", "update"]
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["get", "list", "watch", "delete"]
+- apiGroups: ["autoscaling"]
+  resources: ["horizontalpodautoscalers"]
+  verbs: ["get", "list", "watch", "patch", "update"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["nodes", "pods"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: resource-optimizer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: resource-optimizer
+subjects:
+- kind: ServiceAccount
+  name: resource-optimizer
+  namespace: cost-optimization
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-downscaler
+  namespace: cost-optimization
+  labels:
+    app: kube-downscaler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube-downscaler
+  template:
+    metadata:
+      labels:
+        app: kube-downscaler
+    spec:
+      containers:
+      - name: kube-downscaler
+        image: hjacobs/kube-downscaler:23.2.0
+        args:
+        - --interval=60
+        - --dry-run=false
+        - --include-resources=deployments,statefulsets
+        - --exclude-namespaces=kube-system,monitoring,cost-optimization
+        - --default-uptime=Mon-Fri 09:00-18:00 America/Los_Angeles
+        - --default-downtime=Sat-Sun 00:00-23:59 America/Los_Angeles
+        - --grace-period=60
+        - --downscale-period=600
+        - --upscale-period=300
+        - --enable-events=true
+        - --log-level=INFO
+        env:
+        - name: CLUSTER_NAME
+          value: "nockchain-prod"
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      serviceAccountName: kube-downscaler
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-downscaler
+  namespace: cost-optimization
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kube-downscaler
+rules:
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets"]
+  verbs: ["get", "list", "watch", "patch", "update"]
+- apiGroups: ["autoscaling"]
+  resources: ["horizontalpodautoscalers"]
+  verbs: ["get", "list", "watch", "patch", "update"]
+- apiGroups: ["batch"]
+  resources: ["cronjobs"]
+  verbs: ["get", "list", "watch", "patch", "update"]
+- apiGroups: ["argoproj.io"]
+  resources: ["rollouts"]
+  verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-downscaler
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-downscaler
+subjects:
+- kind: ServiceAccount
+  name: kube-downscaler
+  namespace: cost-optimization
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kubecost-ingress
+  namespace: cost-optimization
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: kubecost-basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: "Kubecost Authentication Required"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+  - hosts:
+    - kubecost.nockchain.com
+    secretName: kubecost-tls
+  rules:
+  - host: kubecost.nockchain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: kubecost-cost-analyzer
+            port:
+              number: 9090
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kubecost-basic-auth
+  namespace: cost-optimization
+type: Opaque
+data:
+  auth: YWRtaW46JGFwcjEkSDY1dnV4MjYkY3ZPcnFCQjBsWGpLQVNzVHlsSzlSLg==  # admin:admin
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cost-report-generator
+  namespace: cost-optimization
+spec:
+  schedule: "0 9 * * 1"  # Every Monday at 9 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: cost-reporter
+            image: alpine/curl:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              #!/bin/bash
+              set -e
+              
+              echo "Generating weekly cost report..."
+              
+              # Get cost data from Kubecost API
+              KUBECOST_URL="http://kubecost-cost-analyzer:9090"
+              
+              # Get allocation data for the past week
+              ALLOCATION_DATA=$(curl -s "$KUBECOST_URL/model/allocation?window=7d&aggregate=namespace")
+              
+              # Get cluster costs
+              CLUSTER_COSTS=$(curl -s "$KUBECOST_URL/model/costDataModel?timeWindow=7d")
+              
+              # Generate report
+              cat > /tmp/weekly-cost-report.json <<EOF
+              {
+                "report_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+                "period": "Past 7 days",
+                "cluster": "nockchain-prod",
+                "allocation_data": $ALLOCATION_DATA,
+                "cluster_costs": $CLUSTER_COSTS,
+                "recommendations": [
+                  "Consider using spot instances for development workloads",
+                  "Implement resource quotas for cost control",
+                  "Review storage utilization and cleanup unused volumes",
+                  "Optimize container resource requests based on actual usage"
+                ]
+              }
+              EOF
+              
+              echo "Weekly cost report generated"
+              
+              # Send report via email/slack
+              curl -X POST -H 'Content-type: application/json' \
+                --data '{"text":"📊 Weekly Cost Report Generated. Check Kubecost dashboard for detailed analysis: https://kubecost.nockchain.com"}' \
+                https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+              
+              echo "Cost report sent to stakeholders"
+            resources:
+              requests:
+                memory: "64Mi"
+                cpu: "50m"
+              limits:
+                memory: "128Mi"
+                cpu: "100m"
+          restartPolicy: OnFailure
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1

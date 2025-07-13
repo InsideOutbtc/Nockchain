@@ -1,0 +1,101 @@
+# Prometheus configuration for Nockchain mining pool monitoring
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'nockchain-mining-pool'
+    environment: 'production'
+
+rule_files:
+  - "alerts.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  # Monitoring service metrics
+  - job_name: 'nockchain-monitoring'
+    static_configs:
+      - targets: ['monitoring-service:3001']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # Mining pool API metrics
+  - job_name: 'mining-pool-api'
+    static_configs:
+      - targets: ['host.docker.internal:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # Node exporter (system metrics)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 15s
+
+  # cAdvisor (container metrics)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    scrape_interval: 30s
+
+  # Redis metrics (if Redis exporter is available)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s
+
+  # Grafana metrics
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+# Remote write configuration for long-term storage (optional)
+# Uncomment if using external time series database
+# remote_write:
+#   - url: "https://your-remote-storage.com/api/v1/write"
+#     basic_auth:
+#       username: "username"
+#       password: "password"
+
+# Recording rules for performance optimization
+recording_rules:
+  - name: nockchain.mining.rules
+    rules:
+      - record: nockchain:pool_hashrate_rate5m
+        expr: rate(nockchain_pool_hashrate_total[5m])
+      
+      - record: nockchain:share_rate_rate1m
+        expr: rate(nockchain_share_rate_per_second[1m])
+      
+      - record: nockchain:error_rate_rate5m
+        expr: rate(nockchain_errors_total[5m])
+      
+      - record: nockchain:http_request_rate_rate5m
+        expr: rate(nockchain_http_requests_total[5m])
+
+  - name: system.rules
+    rules:
+      - record: system:cpu_usage_avg5m
+        expr: avg(rate(node_cpu_seconds_total{mode!="idle"}[5m])) * 100
+      
+      - record: system:memory_usage_percent
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
+      
+      - record: system:disk_usage_percent
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100

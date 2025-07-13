@@ -1,0 +1,564 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - grafana
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: grafana
+        image: grafana/grafana:10.1.0
+        ports:
+        - containerPort: 3000
+        env:
+        - name: GF_SECURITY_ADMIN_USER
+          value: admin
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: grafana-credentials
+              key: password
+        - name: GF_INSTALL_PLUGINS
+          value: grafana-piechart-panel,grafana-worldmap-panel,grafana-clock-panel,grafana-polystat-panel,redis-datasource,postgres-datasource
+        - name: GF_SERVER_ROOT_URL
+          value: https://grafana.nockchain.com
+        - name: GF_SMTP_ENABLED
+          value: "true"
+        - name: GF_SMTP_HOST
+          value: smtp.gmail.com:587
+        - name: GF_SMTP_USER
+          value: alerts@nockchain.com
+        - name: GF_SMTP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: grafana-credentials
+              key: smtp_password
+        - name: GF_SMTP_FROM_ADDRESS
+          value: alerts@nockchain.com
+        - name: GF_SMTP_FROM_NAME
+          value: Grafana
+        - name: GF_USERS_ALLOW_SIGN_UP
+          value: "false"
+        - name: GF_AUTH_ANONYMOUS_ENABLED
+          value: "false"
+        - name: GF_SECURITY_ALLOW_EMBEDDING
+          value: "true"
+        - name: GF_SECURITY_COOKIE_SECURE
+          value: "true"
+        - name: GF_SECURITY_COOKIE_SAMESITE
+          value: "strict"
+        - name: GF_FEATURE_TOGGLES_ENABLE
+          value: "publicDashboards"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: grafana-storage
+          mountPath: /var/lib/grafana
+        - name: grafana-config
+          mountPath: /etc/grafana/grafana.ini
+          subPath: grafana.ini
+        - name: grafana-dashboards
+          mountPath: /var/lib/grafana/dashboards
+        - name: grafana-provisioning
+          mountPath: /etc/grafana/provisioning
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: grafana-storage
+        persistentVolumeClaim:
+          claimName: grafana-storage
+      - name: grafana-config
+        configMap:
+          name: grafana-config
+      - name: grafana-dashboards
+        configMap:
+          name: grafana-dashboards
+      - name: grafana-provisioning
+        configMap:
+          name: grafana-provisioning
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-storage
+  namespace: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: high-performance-ssd
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  selector:
+    app: grafana
+  ports:
+  - port: 3000
+    targetPort: 3000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-credentials
+  namespace: monitoring
+type: Opaque
+data:
+  password: YWRtaW5wYXNzd29yZA==  # adminpassword
+  smtp_password: c210cF9wYXNzd29yZA==  # smtp_password
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-config
+  namespace: monitoring
+data:
+  grafana.ini: |
+    [server]
+    http_port = 3000
+    domain = grafana.nockchain.com
+    root_url = https://grafana.nockchain.com
+    enable_gzip = true
+    
+    [database]
+    type = postgres
+    host = postgres.database.svc.cluster.local:5432
+    name = grafana
+    user = grafana
+    password = ${POSTGRES_PASSWORD}
+    ssl_mode = require
+    
+    [security]
+    admin_user = admin
+    admin_password = ${GF_SECURITY_ADMIN_PASSWORD}
+    secret_key = ${GF_SECURITY_SECRET_KEY}
+    disable_gravatar = true
+    cookie_secure = true
+    cookie_samesite = strict
+    content_type_protection = true
+    x_content_type_options = true
+    x_xss_protection = true
+    
+    [users]
+    allow_sign_up = false
+    allow_org_create = false
+    auto_assign_org = true
+    auto_assign_org_id = 1
+    auto_assign_org_role = Viewer
+    
+    [auth.anonymous]
+    enabled = false
+    
+    [auth.basic]
+    enabled = true
+    
+    [auth.ldap]
+    enabled = false
+    
+    [smtp]
+    enabled = true
+    host = smtp.gmail.com:587
+    user = alerts@nockchain.com
+    password = ${GF_SMTP_PASSWORD}
+    from_address = alerts@nockchain.com
+    from_name = Grafana
+    
+    [log]
+    mode = console
+    level = info
+    
+    [alerting]
+    enabled = true
+    execute_alerts = true
+    
+    [metrics]
+    enabled = true
+    interval_seconds = 10
+    
+    [feature_toggles]
+    enable = publicDashboards
+    
+    [unified_alerting]
+    enabled = true
+    
+    [explore]
+    enabled = true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+  namespace: monitoring
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+    - name: Prometheus
+      type: prometheus
+      access: proxy
+      url: http://prometheus:9090
+      isDefault: true
+      editable: true
+      jsonData:
+        timeInterval: 5s
+        queryTimeout: 300s
+        httpMethod: POST
+        
+    - name: Jaeger
+      type: jaeger
+      access: proxy
+      url: http://jaeger-query:16686
+      editable: true
+      
+    - name: Redis
+      type: redis-datasource
+      access: proxy
+      url: redis://redis-cluster:6379
+      editable: true
+      
+    - name: PostgreSQL
+      type: postgres
+      access: proxy
+      url: postgres.database.svc.cluster.local:5432
+      database: nockchain
+      user: grafana
+      password: ${POSTGRES_PASSWORD}
+      sslmode: require
+      editable: true
+      
+    - name: AlertManager
+      type: alertmanager
+      access: proxy
+      url: http://alertmanager:9093
+      editable: true
+      
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+    - name: default
+      orgId: 1
+      folder: ''
+      type: file
+      disableDeletion: false
+      updateIntervalSeconds: 10
+      allowUiUpdates: true
+      options:
+        path: /var/lib/grafana/dashboards
+        
+    - name: performance
+      orgId: 1
+      folder: 'Performance'
+      type: file
+      disableDeletion: false
+      updateIntervalSeconds: 10
+      allowUiUpdates: true
+      options:
+        path: /var/lib/grafana/dashboards/performance
+        
+    - name: infrastructure
+      orgId: 1
+      folder: 'Infrastructure'
+      type: file
+      disableDeletion: false
+      updateIntervalSeconds: 10
+      allowUiUpdates: true
+      options:
+        path: /var/lib/grafana/dashboards/infrastructure
+        
+    - name: application
+      orgId: 1
+      folder: 'Application'
+      type: file
+      disableDeletion: false
+      updateIntervalSeconds: 10
+      allowUiUpdates: true
+      options:
+        path: /var/lib/grafana/dashboards/application
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+data:
+  performance-optimizer.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "Performance Optimizer Dashboard",
+        "tags": ["performance", "nockchain"],
+        "style": "dark",
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "API Response Time",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "avg(performance_optimizer_api_response_time_seconds)",
+                "format": "time_series",
+                "legendFormat": "Response Time"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "thresholds"
+                },
+                "thresholds": {
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0.025
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.1
+                    }
+                  ]
+                },
+                "unit": "s"
+              }
+            }
+          },
+          {
+            "id": 2,
+            "title": "Request Rate",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "rate(performance_optimizer_requests_total[5m])",
+                "format": "time_series",
+                "legendFormat": "Requests/sec"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "palette-classic"
+                },
+                "unit": "rps"
+              }
+            }
+          },
+          {
+            "id": 3,
+            "title": "Error Rate",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "rate(performance_optimizer_errors_total[5m])",
+                "format": "time_series",
+                "legendFormat": "Errors/sec"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "thresholds"
+                },
+                "thresholds": {
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0.01
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.05
+                    }
+                  ]
+                },
+                "unit": "percent"
+              }
+            }
+          },
+          {
+            "id": 4,
+            "title": "Memory Usage",
+            "type": "timeseries",
+            "targets": [
+              {
+                "expr": "performance_optimizer_memory_usage_bytes",
+                "format": "time_series",
+                "legendFormat": "Memory Usage"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "palette-classic"
+                },
+                "unit": "bytes"
+              }
+            }
+          },
+          {
+            "id": 5,
+            "title": "CPU Usage",
+            "type": "timeseries",
+            "targets": [
+              {
+                "expr": "rate(performance_optimizer_cpu_usage_seconds_total[5m])",
+                "format": "time_series",
+                "legendFormat": "CPU Usage"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "palette-classic"
+                },
+                "unit": "percent"
+              }
+            }
+          },
+          {
+            "id": 6,
+            "title": "Database Connections",
+            "type": "timeseries",
+            "targets": [
+              {
+                "expr": "performance_optimizer_database_connections_active",
+                "format": "time_series",
+                "legendFormat": "Active Connections"
+              },
+              {
+                "expr": "performance_optimizer_database_connections_max",
+                "format": "time_series",
+                "legendFormat": "Max Connections"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "palette-classic"
+                },
+                "unit": "short"
+              }
+            }
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "5s"
+      }
+    }
+  
+  infrastructure.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "Infrastructure Overview",
+        "tags": ["infrastructure", "kubernetes"],
+        "style": "dark",
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Cluster CPU Usage",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "100 - (avg by (cluster) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+                "format": "time_series",
+                "legendFormat": "CPU Usage %"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "Cluster Memory Usage",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "(1 - (avg by (cluster) (node_memory_MemAvailable_bytes) / avg by (cluster) (node_memory_MemTotal_bytes))) * 100",
+                "format": "time_series",
+                "legendFormat": "Memory Usage %"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Pod Status",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "sum(kube_pod_status_phase{phase=\"Running\"})",
+                "format": "time_series",
+                "legendFormat": "Running Pods"
+              },
+              {
+                "expr": "sum(kube_pod_status_phase{phase=\"Pending\"})",
+                "format": "time_series",
+                "legendFormat": "Pending Pods"
+              },
+              {
+                "expr": "sum(kube_pod_status_phase{phase=\"Failed\"})",
+                "format": "time_series",
+                "legendFormat": "Failed Pods"
+              }
+            ]
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "30s"
+      }
+    }

@@ -1,0 +1,63 @@
+[package]
+name = "nock-mobile"
+version = "0.1.0"
+edition = "2021"
+description = "NOCK Mobile Application with Eon-Aware Features"
+authors = ["NOCK Team"]
+license = "MIT"
+
+[dependencies]
+# Core dependencies
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+log = "0.4"
+env_logger = "0.10"
+chrono = { version = "0.4", features = ["serde"] }
+
+# Mobile framework
+tauri = { version = "1.0", features = ["api-all"] }
+tauri-build = "1.0"
+
+# Crypto and blockchain
+blake3 = "1.4"
+sha2 = "0.10"
+secp256k1 = "0.27"
+bip39 = "2.0"
+tiny-hderive = "0.3"
+
+# Networking
+reqwest = { version = "0.11", features = ["json"] }
+tungstenite = "0.19"
+tokio-tungstenite = "0.19"
+
+# UI and rendering
+wry = "0.24"
+webkit2gtk = "0.18"
+
+# Database
+rusqlite = { version = "0.29", features = ["bundled"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite"] }
+
+# Utilities
+uuid = { version = "1.0", features = ["v4", "serde"] }
+base64 = "0.21"
+hex = "0.4"
+
+# Performance optimization
+rayon = "1.7"
+crossbeam = "0.8"
+
+# Push notifications
+firebase-rs = "2.0"
+
+# Biometric authentication
+keyring = "2.0"
+
+[build-dependencies]
+tauri-build = "1.0"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

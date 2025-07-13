@@ -1,0 +1,287 @@
+# Revenue Engine Docker Compose - $2M+ Monthly Revenue Activation
+# Production-ready deployment for all revenue streams
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database for Revenue Data
+  revenue-db:
+    image: postgres:15-alpine
+    container_name: nockchain-revenue-db
+    environment:
+      POSTGRES_DB: revenue_engine
+      POSTGRES_USER: revenue_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-revenue_secure_password}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - revenue_db_data:/var/lib/postgresql/data
+      - ./sql/init-revenue-db.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5433:5432"
+    networks:
+      - revenue-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U revenue_user -d revenue_engine"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache for High-Performance Operations
+  revenue-redis:
+    image: redis:7-alpine
+    container_name: nockchain-revenue-redis
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
+    volumes:
+      - revenue_redis_data:/data
+    ports:
+      - "6380:6379"
+    networks:
+      - revenue-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Revenue Engine Core Service
+  revenue-engine:
+    build:
+      context: ./apps/revenue-engine
+      dockerfile: Dockerfile
+    container_name: nockchain-revenue-engine
+    environment:
+      DATABASE_URL: postgresql://revenue_user:${POSTGRES_PASSWORD:-revenue_secure_password}@revenue-db:5432/revenue_engine
+      REDIS_URL: redis://revenue-redis:6379
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      SOLANA_RPC_URL: ${SOLANA_RPC_URL:-https://api.mainnet-beta.solana.com}
+      NOCK_RPC_URL: ${NOCK_RPC_URL:-https://rpc.nockchain.com}
+      RUST_LOG: info
+      REVENUE_TARGET_MONTHLY: 2095000
+    ports:
+      - "8080:8080"
+    depends_on:
+      revenue-db:
+        condition: service_healthy
+      revenue-redis:
+        condition: service_healthy
+    networks:
+      - revenue-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Premium Analytics Platform
+  premium-analytics:
+    build:
+      context: ./apps/premium-analytics
+      dockerfile: Dockerfile
+    container_name: nockchain-premium-analytics
+    environment:
+      DATABASE_URL: postgresql://revenue_user:${POSTGRES_PASSWORD:-revenue_secure_password}@revenue-db:5432/revenue_engine
+      REDIS_URL: redis://revenue-redis:6379
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      JWT_SECRET: ${JWT_SECRET:-analytics_jwt_secret}
+      NODE_ENV: production
+      PORT: 3001
+      REVENUE_TARGET_ANALYTICS: 195000
+    ports:
+      - "3001:3001"
+    depends_on:
+      revenue-db:
+        condition: service_healthy
+      revenue-redis:
+        condition: service_healthy
+    networks:
+      - revenue-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Bridge Revenue Service
+  bridge-revenue:
+    build:
+      context: ./apps/bridge-revenue
+      dockerfile: Dockerfile
+    container_name: nockchain-bridge-revenue
+    environment:
+      DATABASE_URL: postgresql://revenue_user:${POSTGRES_PASSWORD:-revenue_secure_password}@revenue-db:5432/revenue_engine
+      REDIS_URL: redis://revenue-redis:6379
+      SOLANA_RPC_URL: ${SOLANA_RPC_URL:-https://api.mainnet-beta.solana.com}
+      NOCK_RPC_URL: ${NOCK_RPC_URL:-https://rpc.nockchain.com}
+      SOLANA_FEE_COLLECTION_ADDRESS: ${SOLANA_FEE_COLLECTION_ADDRESS}
+      NOCK_FEE_COLLECTION_ADDRESS: ${NOCK_FEE_COLLECTION_ADDRESS}
+      RUST_LOG: info
+      REVENUE_TARGET_BRIDGE: 645000
+    ports:
+      - "8081:8080"
+    depends_on:
+      revenue-db:
+        condition: service_healthy
+      revenue-redis:
+        condition: service_healthy
+    networks:
+      - revenue-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Revenue Coordinator (Master Orchestration)
+  revenue-coordinator:
+    build:
+      context: ./apps/revenue-coordinator
+      dockerfile: Dockerfile
+    container_name: nockchain-revenue-coordinator
+    environment:
+      REVENUE_ENGINE_URL: http://revenue-engine:8080
+      ANALYTICS_URL: http://premium-analytics:3001
+      BRIDGE_URL: http://bridge-revenue:8080
+      REDIS_URL: redis://revenue-redis:6379
+      RUST_LOG: info
+      REVENUE_TARGET_TOTAL: 2095000
+    ports:
+      - "8000:8000"
+    depends_on:
+      revenue-engine:
+        condition: service_healthy
+      premium-analytics:
+        condition: service_healthy
+      bridge-revenue:
+        condition: service_healthy
+    networks:
+      - revenue-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Load Balancer & API Gateway
+  revenue-gateway:
+    image: nginx:alpine
+    container_name: nockchain-revenue-gateway
+    volumes:
+      - ./nginx/revenue-gateway.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - revenue-coordinator
+      - revenue-engine
+      - premium-analytics
+      - bridge-revenue
+    networks:
+      - revenue-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Prometheus Monitoring
+  revenue-prometheus:
+    image: prom/prometheus:latest
+    container_name: nockchain-revenue-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - revenue_prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - revenue-network
+    restart: unless-stopped
+
+  # Grafana Revenue Dashboard
+  revenue-grafana:
+    image: grafana/grafana:latest
+    container_name: nockchain-revenue-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-revenue_dashboard_admin}
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - revenue_grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    ports:
+      - "3000:3000"
+    depends_on:
+      - revenue-prometheus
+    networks:
+      - revenue-network
+    restart: unless-stopped
+
+  # ElasticSearch for Revenue Analytics
+  revenue-elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.0
+    container_name: nockchain-revenue-elasticsearch
+    environment:
+      discovery.type: single-node
+      ES_JAVA_OPTS: "-Xms2g -Xmx2g"
+      xpack.security.enabled: false
+    volumes:
+      - revenue_elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - revenue-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Kibana Revenue Analytics Dashboard
+  revenue-kibana:
+    image: docker.elastic.co/kibana/kibana:8.8.0
+    container_name: nockchain-revenue-kibana
+    environment:
+      ELASTICSEARCH_HOSTS: http://revenue-elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      revenue-elasticsearch:
+        condition: service_healthy
+    networks:
+      - revenue-network
+    restart: unless-stopped
+
+volumes:
+  revenue_db_data:
+    driver: local
+  revenue_redis_data:
+    driver: local
+  revenue_prometheus_data:
+    driver: local
+  revenue_grafana_data:
+    driver: local
+  revenue_elasticsearch_data:
+    driver: local
+
+networks:
+  revenue-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

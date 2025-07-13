@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="320" height="80" viewBox="0 0 320 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Main "Nock=" Text in Black -->
+  <text x="20" y="55" font-family="JetBrains Mono, monospace" font-size="48" font-weight="700" fill="#000000">Nock=</text>
+  
+  <!-- Precision indicator dots -->
+  <circle cx="280" cy="25" r="2" fill="#000000" opacity="0.8"/>
+  <circle cx="290" cy="25" r="2" fill="#000000" opacity="0.6"/>
+  <circle cx="300" cy="25" r="2" fill="#000000" opacity="0.4"/>
+  
+  <!-- Mathematical precision line -->
+  <line x1="20" y1="68" x2="200" y2="68" stroke="rgba(0,0,0,0.3)" stroke-width="2"/>
+  <line x1="20" y1="70" x2="180" y2="70" stroke="rgba(0,0,0,0.2)" stroke-width="1"/>
+  
+  <!-- Computational accent -->
+  <rect x="220" y="50" width="20" height="3" fill="#000000" opacity="0.7"/>
+  <rect x="245" y="50" width="15" height="3" fill="#000000" opacity="0.5"/>
+  <rect x="265" y="50" width="10" height="3" fill="#000000" opacity="0.3"/>
+</svg>

@@ -1,0 +1,189 @@
+/* NOCKCHAIN UPDATED COLOR SYSTEM */
+/* Latest refined color palette for professional implementation */
+
+:root {
+  /* UPDATED PRIMARY COLOR SYSTEM */
+  --nock-black: #000000;         /* Primary background */
+  --nock-orange: #ff8c42;        /* Performance metrics, CTAs */
+  --nock-gray-800: #1a1a1a;      /* Card backgrounds */
+  --nock-gray-600: #404040;      /* Secondary elements */
+  --nock-gray-400: #737373;      /* Tertiary/labels */
+  --nock-white: #ffffff;         /* Primary text */
+  
+  /* EXTENDED COLOR VARIATIONS */
+  --nock-orange-light: #ffb374;  /* Hover states */
+  --nock-orange-dark: #e6742a;   /* Active states */
+  --nock-orange-subtle: rgba(255, 140, 66, 0.1); /* Background tints */
+  
+  /* PROFESSIONAL GRADIENTS */
+  --nock-primary-gradient: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+  --nock-orange-gradient: linear-gradient(135deg, #ff8c42 0%, #e6742a 100%);
+  --nock-surface-gradient: linear-gradient(135deg, #1a1a1a 0%, #404040 100%);
+  
+  /* OPACITY VARIANTS FOR STRATEGIC USE */
+  --nock-orange-90: rgba(255, 140, 66, 0.9);
+  --nock-orange-80: rgba(255, 140, 66, 0.8);
+  --nock-orange-60: rgba(255, 140, 66, 0.6);
+  --nock-orange-40: rgba(255, 140, 66, 0.4);
+  --nock-orange-20: rgba(255, 140, 66, 0.2);
+  --nock-orange-10: rgba(255, 140, 66, 0.1);
+  --nock-orange-05: rgba(255, 140, 66, 0.05);
+  
+  /* INTERFACE ELEMENTS */
+  --nock-border: rgba(64, 64, 64, 0.3);
+  --nock-border-hover: rgba(64, 64, 64, 0.5);
+  --nock-border-active: rgba(255, 140, 66, 0.3);
+  --nock-hover: rgba(255, 255, 255, 0.05);
+  --nock-active: rgba(255, 140, 66, 0.1);
+  --nock-focus: rgba(255, 140, 66, 0.2);
+  
+  /* PROFESSIONAL SHADOWS */
+  --nock-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --nock-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --nock-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.2);
+  --nock-shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.15);
+  
+  /* STRATEGIC GLOW EFFECTS */
+  --nock-glow-orange: 0 0 20px rgba(255, 140, 66, 0.3);
+  --nock-glow-orange-intense: 0 0 40px rgba(255, 140, 66, 0.5);
+}
+
+/* UPDATED COLOR UTILITY CLASSES */
+
+/* BACKGROUND COLORS */
+.nock-bg-black { background-color: var(--nock-black); }
+.nock-bg-white { background-color: var(--nock-white); }
+.nock-bg-gray-800 { background-color: var(--nock-gray-800); }
+.nock-bg-gray-600 { background-color: var(--nock-gray-600); }
+.nock-bg-gray-400 { background-color: var(--nock-gray-400); }
+.nock-bg-orange { background-color: var(--nock-orange); }
+
+/* GRADIENT BACKGROUNDS */
+.nock-bg-primary-gradient { background: var(--nock-primary-gradient); }
+.nock-bg-orange-gradient { background: var(--nock-orange-gradient); }
+.nock-bg-surface-gradient { background: var(--nock-surface-gradient); }
+
+/* TEXT COLORS */
+.nock-text-white { color: var(--nock-white); }
+.nock-text-black { color: var(--nock-black); }
+.nock-text-gray-400 { color: var(--nock-gray-400); }
+.nock-text-gray-600 { color: var(--nock-gray-600); }
+.nock-text-orange { color: var(--nock-orange); }
+
+/* BORDER COLORS */
+.nock-border-gray-600 { border-color: var(--nock-gray-600); }
+.nock-border-orange { border-color: var(--nock-orange); }
+
+/* UPDATED COMPONENT STYLING */
+
+/* Professional Buttons with Orange Accent */
+.nock-btn-primary {
+  background: var(--nock-orange-gradient);
+  color: var(--nock-white);
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.nock-btn-primary:hover {
+  background: linear-gradient(135deg, #ffb374 0%, #ff8c42 100%);
+  transform: translateY(-1px);
+  box-shadow: var(--nock-shadow-lg), var(--nock-glow-orange);
+}
+
+/* Updated Cards */
+.nock-card-updated {
+  background: var(--nock-gray-800);
+  border: 1px solid var(--nock-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+  box-shadow: var(--nock-shadow-sm);
+}
+
+.nock-card-updated:hover {
+  border-color: var(--nock-border-hover);
+  background: rgba(26, 26, 26, 0.8);
+  box-shadow: var(--nock-shadow-md);
+  transform: translateY(-2px);
+}
+
+/* Performance Metrics with Orange Accent */
+.nock-metric-display {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--nock-orange);
+  text-shadow: var(--nock-glow-orange);
+}
+
+/* Status Indicators */
+.nock-status-active {
+  background: var(--nock-orange-10);
+  border: 1px solid var(--nock-orange);
+  color: var(--nock-orange);
+  border-radius: 20px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nock-status-active::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: var(--nock-orange);
+  border-radius: 50%;
+  animation: nock-pulse-subtle 2s infinite;
+}
+
+/* Updated Form Elements */
+.nock-input-updated {
+  background: var(--nock-gray-800);
+  border: 1px solid var(--nock-border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  color: var(--nock-white);
+  font-family: 'JetBrains Mono', monospace;
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.nock-input-updated:focus {
+  border-color: var(--nock-orange);
+  box-shadow: 0 0 0 3px var(--nock-focus);
+  background: var(--nock-gray-600);
+  outline: none;
+}
+
+/* Professional Navigation */
+.nock-nav-updated {
+  background: var(--nock-gray-800);
+  border-bottom: 1px solid var(--nock-border);
+  padding: 1rem;
+}
+
+.nock-nav-link {
+  color: var(--nock-gray-400);
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.nock-nav-link:hover {
+  color: var(--nock-white);
+  background: var(--nock-hover);
+}
+
+.nock-nav-link.active {
+  color: var(--nock-orange);
+  background: var(--nock-active);
+}

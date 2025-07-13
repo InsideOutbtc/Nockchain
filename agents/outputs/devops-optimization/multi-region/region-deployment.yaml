@@ -1,0 +1,577 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: region-deployment-config
+  namespace: nockchain
+data:
+  regions.yaml: |
+    regions:
+      us-west-2:
+        name: "US West 2"
+        code: "usw2"
+        cluster_endpoint: "us-west-2.k8s.nockchain.com"
+        primary: true
+        availability_zones:
+          - "us-west-2a"
+          - "us-west-2b"
+          - "us-west-2c"
+        instance_types:
+          - "m5.2xlarge"
+          - "c5.2xlarge"
+          - "r5.2xlarge"
+        storage_class: "gp3"
+        backup_region: "us-east-1"
+        
+      us-east-1:
+        name: "US East 1"
+        code: "use1"
+        cluster_endpoint: "us-east-1.k8s.nockchain.com"
+        primary: false
+        availability_zones:
+          - "us-east-1a"
+          - "us-east-1b"
+          - "us-east-1c"
+        instance_types:
+          - "m5.2xlarge"
+          - "c5.2xlarge"
+          - "r5.2xlarge"
+        storage_class: "gp3"
+        backup_region: "us-west-2"
+        
+      eu-west-1:
+        name: "EU West 1"
+        code: "euw1"
+        cluster_endpoint: "eu-west-1.k8s.nockchain.com"
+        primary: false
+        availability_zones:
+          - "eu-west-1a"
+          - "eu-west-1b"
+          - "eu-west-1c"
+        instance_types:
+          - "m5.2xlarge"
+          - "c5.2xlarge"
+          - "r5.2xlarge"
+        storage_class: "gp3"
+        backup_region: "eu-central-1"
+        
+      ap-southeast-1:
+        name: "AP Southeast 1"
+        code: "apse1"
+        cluster_endpoint: "ap-southeast-1.k8s.nockchain.com"
+        primary: false
+        availability_zones:
+          - "ap-southeast-1a"
+          - "ap-southeast-1b"
+          - "ap-southeast-1c"
+        instance_types:
+          - "m5.2xlarge"
+          - "c5.2xlarge"
+          - "r5.2xlarge"
+        storage_class: "gp3"
+        backup_region: "ap-northeast-1"
+        
+  deployment-template.yaml: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: performance-optimizer-${REGION}
+      namespace: nockchain
+      labels:
+        app: performance-optimizer
+        region: ${REGION}
+        environment: production
+    spec:
+      replicas: ${REPLICAS}
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 25%
+          maxSurge: 25%
+      selector:
+        matchLabels:
+          app: performance-optimizer
+          region: ${REGION}
+      template:
+        metadata:
+          labels:
+            app: performance-optimizer
+            region: ${REGION}
+            version: v1.0.0
+          annotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "8080"
+            prometheus.io/path: "/metrics"
+        spec:
+          affinity:
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                    - performance-optimizer
+                topologyKey: kubernetes.io/hostname
+            nodeAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                preference:
+                  matchExpressions:
+                  - key: node.kubernetes.io/instance-type
+                    operator: In
+                    values:
+                    - m5.2xlarge
+                    - c5.2xlarge
+                    - r5.2xlarge
+              - weight: 50
+                preference:
+                  matchExpressions:
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values:
+                    - ${REGION}a
+                    - ${REGION}b
+                    - ${REGION}c
+          topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: DoNotSchedule
+            labelSelector:
+              matchLabels:
+                app: performance-optimizer
+                region: ${REGION}
+          containers:
+          - name: performance-optimizer
+            image: nockchain/performance-optimizer:${VERSION}
+            imagePullPolicy: Always
+            ports:
+            - containerPort: 8080
+              name: metrics
+            - containerPort: 8000
+              name: api
+            env:
+            - name: REGION
+              value: ${REGION}
+            - name: CLUSTER_ID
+              value: ${CLUSTER_ID}
+            - name: RUST_LOG
+              value: "info"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: database-credentials-${REGION}
+                  key: url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: redis-credentials-${REGION}
+                  key: url
+            - name: JAEGER_AGENT_HOST
+              value: "jaeger-agent.monitoring.svc.cluster.local"
+            - name: PROMETHEUS_GATEWAY
+              value: "prometheus-pushgateway.monitoring.svc.cluster.local:9091"
+            - name: CROSS_REGION_ENDPOINTS
+              value: "${CROSS_REGION_ENDPOINTS}"
+            resources:
+              requests:
+                memory: "2Gi"
+                cpu: "1000m"
+              limits:
+                memory: "4Gi"
+                cpu: "2000m"
+            livenessProbe:
+              httpGet:
+                path: /health
+                port: 8000
+              initialDelaySeconds: 30
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 3
+            readinessProbe:
+              httpGet:
+                path: /ready
+                port: 8000
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 3
+              failureThreshold: 3
+            startupProbe:
+              httpGet:
+                path: /health
+                port: 8000
+              initialDelaySeconds: 10
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 30
+            volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            - name: logs
+              mountPath: /app/logs
+            - name: region-config
+              mountPath: /app/region-config
+              readOnly: true
+          volumes:
+          - name: config
+            configMap:
+              name: performance-optimizer-config-${REGION}
+          - name: logs
+            emptyDir: {}
+          - name: region-config
+            configMap:
+              name: region-deployment-config
+          serviceAccountName: performance-optimizer
+          terminationGracePeriodSeconds: 30
+          dnsPolicy: ClusterFirst
+          restartPolicy: Always
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: multi-region-deployer
+  namespace: nockchain
+spec:
+  template:
+    spec:
+      containers:
+      - name: deployer
+        image: alpine/k8s:1.27.3
+        command:
+        - /bin/sh
+        - -c
+        - |
+          #!/bin/bash
+          set -e
+          
+          echo "Starting multi-region deployment"
+          
+          # Load region configuration
+          REGIONS_CONFIG="/app/region-config/regions.yaml"
+          
+          # Extract region information
+          REGIONS=("us-west-2" "us-east-1" "eu-west-1" "ap-southeast-1")
+          
+          for REGION in "${REGIONS[@]}"; do
+            echo "Deploying to region: $REGION"
+            
+            # Set region-specific variables
+            export REGION=$REGION
+            export CLUSTER_ID="${REGION}-nockchain-prod"
+            export VERSION="v1.0.0"
+            
+            # Calculate replicas based on region priority
+            if [ "$REGION" == "us-west-2" ]; then
+              export REPLICAS=20  # Primary region
+            else
+              export REPLICAS=15  # Secondary regions
+            fi
+            
+            # Build cross-region endpoints
+            export CROSS_REGION_ENDPOINTS=""
+            for OTHER_REGION in "${REGIONS[@]}"; do
+              if [ "$OTHER_REGION" != "$REGION" ]; then
+                if [ -n "$CROSS_REGION_ENDPOINTS" ]; then
+                  CROSS_REGION_ENDPOINTS="$CROSS_REGION_ENDPOINTS,"
+                fi
+                CROSS_REGION_ENDPOINTS="$CROSS_REGION_ENDPOINTS$OTHER_REGION.api.nockchain.com"
+              fi
+            done
+            
+            # Create namespace if it doesn't exist
+            kubectl create namespace nockchain --dry-run=client -o yaml | kubectl apply -f -
+            
+            # Create region-specific database secret
+            kubectl create secret generic database-credentials-$REGION \
+              --from-literal=url="postgresql://user:password@$REGION.postgres.nockchain.com:5432/nockchain" \
+              --namespace=nockchain \
+              --dry-run=client -o yaml | kubectl apply -f -
+            
+            # Create region-specific Redis secret
+            kubectl create secret generic redis-credentials-$REGION \
+              --from-literal=url="redis://$REGION.redis.nockchain.com:6379" \
+              --namespace=nockchain \
+              --dry-run=client -o yaml | kubectl apply -f -
+            
+            # Create region-specific config
+            kubectl create configmap performance-optimizer-config-$REGION \
+              --from-literal=config.yaml="
+              server:
+                host: '0.0.0.0'
+                port: 8000
+                workers: 8
+                region: '$REGION'
+              
+              database:
+                pool_size: 50
+                max_connections: 100
+                connection_timeout: 30
+                region: '$REGION'
+              
+              redis:
+                pool_size: 20
+                connection_timeout: 10
+                region: '$REGION'
+              
+              optimization:
+                api_response_target_ms: 25
+                monitoring_interval_seconds: 5
+                auto_scaling_enabled: true
+                cross_region_sync: true
+              
+              metrics:
+                enabled: true
+                port: 8080
+                path: '/metrics'
+                labels:
+                  region: '$REGION'
+              
+              tracing:
+                enabled: true
+                sampling_rate: 0.1
+                jaeger_endpoint: 'http://jaeger-collector.monitoring.svc.cluster.local:14268'
+              
+              cross_region:
+                enabled: true
+                endpoints: '$CROSS_REGION_ENDPOINTS'
+                sync_interval_seconds: 60
+                failover_timeout_seconds: 30
+              " \
+              --namespace=nockchain \
+              --dry-run=client -o yaml | kubectl apply -f -
+            
+            # Apply the deployment template with environment variable substitution
+            envsubst < /app/region-config/deployment-template.yaml | kubectl apply -f -
+            
+            # Create region-specific service
+            kubectl apply -f - <<EOF
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: performance-optimizer-service-$REGION
+              namespace: nockchain
+              labels:
+                app: performance-optimizer
+                region: $REGION
+            spec:
+              type: ClusterIP
+              ports:
+              - port: 8000
+                targetPort: 8000
+                protocol: TCP
+                name: api
+              - port: 8080
+                targetPort: 8080
+                protocol: TCP
+                name: metrics
+              selector:
+                app: performance-optimizer
+                region: $REGION
+          EOF
+            
+            # Create region-specific HPA
+            kubectl apply -f - <<EOF
+            apiVersion: autoscaling/v2
+            kind: HorizontalPodAutoscaler
+            metadata:
+              name: performance-optimizer-hpa-$REGION
+              namespace: nockchain
+            spec:
+              scaleTargetRef:
+                apiVersion: apps/v1
+                kind: Deployment
+                name: performance-optimizer-$REGION
+              minReplicas: $([ "$REGION" == "us-west-2" ] && echo 5 || echo 3)
+              maxReplicas: $([ "$REGION" == "us-west-2" ] && echo 50 || echo 30)
+              metrics:
+              - type: Resource
+                resource:
+                  name: cpu
+                  target:
+                    type: Utilization
+                    averageUtilization: 60
+              - type: Resource
+                resource:
+                  name: memory
+                  target:
+                    type: Utilization
+                    averageUtilization: 70
+              behavior:
+                scaleUp:
+                  stabilizationWindowSeconds: 60
+                  policies:
+                  - type: Percent
+                    value: 100
+                    periodSeconds: 60
+                  - type: Pods
+                    value: 10
+                    periodSeconds: 60
+                  selectPolicy: Max
+                scaleDown:
+                  stabilizationWindowSeconds: 300
+                  policies:
+                  - type: Percent
+                    value: 10
+                    periodSeconds: 60
+                  - type: Pods
+                    value: 5
+                    periodSeconds: 60
+                  selectPolicy: Min
+          EOF
+            
+            # Create region-specific ingress
+            kubectl apply -f - <<EOF
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: performance-optimizer-ingress-$REGION
+              namespace: nockchain
+              annotations:
+                kubernetes.io/ingress.class: "nginx"
+                nginx.ingress.kubernetes.io/ssl-redirect: "true"
+                nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+                nginx.ingress.kubernetes.io/server-snippet: |
+                  add_header X-Region $REGION always;
+                  add_header X-Cluster-ID $CLUSTER_ID always;
+                cert-manager.io/cluster-issuer: "letsencrypt-prod"
+            spec:
+              tls:
+              - hosts:
+                - $REGION.api.nockchain.com
+                secretName: nockchain-tls-$REGION
+              rules:
+              - host: $REGION.api.nockchain.com
+                http:
+                  paths:
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: performance-optimizer-service-$REGION
+                        port:
+                          number: 8000
+          EOF
+            
+            echo "Deployment completed for region: $REGION"
+            
+            # Wait for deployment to be ready
+            kubectl wait --for=condition=available --timeout=300s deployment/performance-optimizer-$REGION -n nockchain
+            
+          done
+          
+          echo "Multi-region deployment completed successfully"
+          
+          # Create global service for cross-region communication
+          kubectl apply -f - <<EOF
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: performance-optimizer-global
+            namespace: nockchain
+            labels:
+              app: performance-optimizer
+              scope: global
+          spec:
+            type: ExternalName
+            externalName: api.nockchain.com
+            ports:
+            - port: 443
+              targetPort: 443
+              protocol: TCP
+              name: https
+          EOF
+          
+          # Create cross-region monitoring service
+          kubectl apply -f - <<EOF
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: cross-region-monitor
+            namespace: nockchain
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: cross-region-monitor
+            template:
+              metadata:
+                labels:
+                  app: cross-region-monitor
+              spec:
+                containers:
+                - name: monitor
+                  image: alpine/curl:latest
+                  command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    while true; do
+                      for region in us-west-2 us-east-1 eu-west-1 ap-southeast-1; do
+                        echo "Checking region: \$region"
+                        curl -s -f https://\$region.api.nockchain.com/health || echo "Region \$region is down"
+                      done
+                      sleep 60
+                    done
+                  resources:
+                    requests:
+                      memory: "64Mi"
+                      cpu: "50m"
+                    limits:
+                      memory: "128Mi"
+                      cpu: "100m"
+          EOF
+          
+          echo "Cross-region monitoring deployed"
+        volumeMounts:
+        - name: region-config
+          mountPath: /app/region-config
+        - name: kubeconfig
+          mountPath: /root/.kube
+      volumes:
+      - name: region-config
+        configMap:
+          name: region-deployment-config
+      - name: kubeconfig
+        secret:
+          secretName: multi-region-kubeconfig
+      restartPolicy: Never
+  backoffLimit: 3
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: multi-region-kubeconfig
+  namespace: nockchain
+type: Opaque
+data:
+  config: |
+    # Base64 encoded kubeconfig with access to all regions
+    YXBpVmVyc2lvbjogdjEKa2luZDogQ29uZmlnCmN1cnJlbnQtY29udGV4dDogZGVmYXVsdApjb250ZXh0czoKLSBuYW1lOiBkZWZhdWx0CiAgY29udGV4dDoKICAgIGNsdXN0ZXI6IGRlZmF1bHQKICAgIHVzZXI6IGRlZmF1bHQKY2x1c3RlcnM6Ci0gbmFtZTogZGVmYXVsdAogIGNsdXN0ZXI6CiAgICBzZXJ2ZXI6IGh0dHBzOi8va3ViZXJuZXRlcy5kZWZhdWx0LnN2Yy5jbHVzdGVyLmxvY2FsCiAgICBjZXJ0aWZpY2F0ZS1hdXRob3JpdHktZGF0YTogTFMwdExTMUNSVWRKVGlCRFJWSlVTVVpKUTBGVVJTMHRMUzB0CnVzZXJzOgotIG5hbWU6IGRlZmF1bHQKICB1c2VyOgogICAgdG9rZW46IGV5SmhiR2NpT2lKU1V6STFOaUlzSW5SNWNDSTZJa3BYVkNKOS4uLg==
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: multi-region-deployer
+  namespace: nockchain
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: multi-region-deployer
+rules:
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: multi-region-deployer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: multi-region-deployer
+subjects:
+- kind: ServiceAccount
+  name: multi-region-deployer
+  namespace: nockchain

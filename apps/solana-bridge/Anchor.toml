@@ -1,0 +1,44 @@
+[features]
+seeds = false
+skip-lint = false
+
+[programs.localnet]
+nock_bridge = "BridGE1111111111111111111111111111111111111111"
+
+[programs.devnet]
+nock_bridge = "BridGE1111111111111111111111111111111111111111"
+
+[programs.mainnet-beta]
+nock_bridge = "BridGE1111111111111111111111111111111111111111"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "Localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+
+[workspace]
+members = [
+    "programs/*"
+]
+
+[test]
+startup_wait = 10000
+shutdown_wait = 10000
+upgradeable = true
+
+[test.validator]
+url = "https://api.devnet.solana.com"
+
+[[test.validator.clone]]
+address = "So11111111111111111111111111111111111111112"
+
+[[test.validator.clone]]
+address = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+
+[[test.validator.clone]]
+address = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"

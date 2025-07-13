@@ -1,0 +1,221 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: performance-optimizer
+  namespace: nockchain
+  labels:
+    app: performance-optimizer
+    version: v1.0.0
+    environment: production
+spec:
+  replicas: 50  # Auto-scaled based on load
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  selector:
+    matchLabels:
+      app: performance-optimizer
+  template:
+    metadata:
+      labels:
+        app: performance-optimizer
+        version: v1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - performance-optimizer
+            topologyKey: kubernetes.io/hostname
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - high-performance
+      containers:
+      - name: performance-optimizer
+        image: nockchain/performance-optimizer:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: metrics
+        - containerPort: 8000
+          name: api
+        env:
+        - name: RUST_LOG
+          value: "info"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: redis-credentials
+              key: url
+        - name: JAEGER_AGENT_HOST
+          value: "jaeger-agent.monitoring.svc.cluster.local"
+        - name: PROMETHEUS_GATEWAY
+          value: "prometheus-pushgateway.monitoring.svc.cluster.local:9091"
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        - name: logs
+          mountPath: /app/logs
+      volumes:
+      - name: config
+        configMap:
+          name: performance-optimizer-config
+      - name: logs
+        emptyDir: {}
+      serviceAccountName: performance-optimizer
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: performance-optimizer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: performance-optimizer-service
+  namespace: nockchain
+  labels:
+    app: performance-optimizer
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: api
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: metrics
+  selector:
+    app: performance-optimizer
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: performance-optimizer-config
+  namespace: nockchain
+data:
+  config.yaml: |
+    server:
+      host: "0.0.0.0"
+      port: 8000
+      workers: 8
+      
+    database:
+      pool_size: 50
+      max_connections: 100
+      connection_timeout: 30
+      
+    redis:
+      pool_size: 20
+      connection_timeout: 10
+      
+    optimization:
+      api_response_target_ms: 25
+      monitoring_interval_seconds: 5
+      auto_scaling_enabled: true
+      
+    metrics:
+      enabled: true
+      port: 8080
+      path: "/metrics"
+      
+    tracing:
+      enabled: true
+      sampling_rate: 0.1
+      jaeger_endpoint: "http://jaeger-collector.monitoring.svc.cluster.local:14268"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: performance-optimizer
+  namespace: nockchain
+  labels:
+    app: performance-optimizer
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: performance-optimizer
+rules:
+- apiGroups: [""]
+  resources: ["pods", "nodes", "services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: performance-optimizer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: performance-optimizer
+subjects:
+- kind: ServiceAccount
+  name: performance-optimizer
+  namespace: nockchain

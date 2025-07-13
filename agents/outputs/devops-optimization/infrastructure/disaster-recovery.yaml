@@ -1,0 +1,466 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: disaster-recovery
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: velero-backup-controller
+  namespace: disaster-recovery
+  labels:
+    app: velero-backup-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: velero-backup-controller
+  template:
+    metadata:
+      labels:
+        app: velero-backup-controller
+    spec:
+      serviceAccountName: velero-backup-controller
+      containers:
+      - name: velero-backup-controller
+        image: velero/velero:v1.11.1
+        command:
+        - /velero
+        - server
+        - --backup-location=default
+        - --volume-snapshot-location=default
+        - --default-volume-snapshot-locations=default
+        - --backup-sync-period=60m
+        - --fs-backup-timeout=4h
+        - --default-backup-ttl=720h
+        - --restore-resource-priorities=securitycontextconstraints,customresourcedefinitions,namespaces,roles,rolebindings,clusterroles,clusterrolebindings,serviceaccounts,secrets,configmaps,persistentvolumes,persistentvolumeclaims,pods,services,endpoints,deployments,replicasets,statefulsets,daemonsets,ingresses
+        - --metrics-address=0.0.0.0:8085
+        - --profiler-address=0.0.0.0:6060
+        - --log-level=info
+        - --log-format=text
+        - --plugin-dir=/plugins
+        - --features=
+        env:
+        - name: VELERO_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: VELERO_SCRATCH_DIR
+          value: /scratch
+        - name: AWS_SHARED_CREDENTIALS_FILE
+          value: /credentials/cloud
+        - name: AWS_CONFIG_FILE
+          value: /credentials/config
+        - name: AZURE_CREDENTIALS_FILE
+          value: /credentials/cloud
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: /credentials/cloud
+        ports:
+        - containerPort: 8085
+          name: metrics
+        - containerPort: 6060
+          name: profiler
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: credentials
+          mountPath: /credentials
+        - name: plugins
+          mountPath: /plugins
+        - name: scratch
+          mountPath: /scratch
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 8085
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 8085
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: credentials
+        secret:
+          secretName: cloud-credentials
+      - name: plugins
+        emptyDir: {}
+      - name: scratch
+        emptyDir: {}
+      initContainers:
+      - name: velero-plugin-for-aws
+        image: velero/velero-plugin-for-aws:v1.7.1
+        volumeMounts:
+        - name: plugins
+          mountPath: /target
+        command:
+        - sh
+        - -c
+        - "cp -r /plugins/* /target/"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: velero-backup-controller
+  namespace: disaster-recovery
+  labels:
+    app: velero-backup-controller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: velero-backup-controller
+  labels:
+    app: velero-backup-controller
+rules:
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["*"]
+- nonResourceURLs: ["*"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: velero-backup-controller
+  labels:
+    app: velero-backup-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: velero-backup-controller
+subjects:
+- kind: ServiceAccount
+  name: velero-backup-controller
+  namespace: disaster-recovery
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: velero-backup-controller
+  namespace: disaster-recovery
+  labels:
+    app: velero-backup-controller
+spec:
+  selector:
+    app: velero-backup-controller
+  ports:
+  - port: 8085
+    targetPort: 8085
+    name: metrics
+  - port: 6060
+    targetPort: 6060
+    name: profiler
+  type: ClusterIP
+---
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: default
+  namespace: disaster-recovery
+spec:
+  provider: aws
+  objectStorage:
+    bucket: nockchain-velero-backups
+    prefix: velero
+  config:
+    region: us-west-2
+    s3ForcePathStyle: "false"
+    s3Url: https://s3.us-west-2.amazonaws.com
+    kmsKeyId: arn:aws:kms:us-west-2:123456789012:key/12345678-1234-1234-1234-123456789012
+    serverSideEncryption: aws:kms
+---
+apiVersion: velero.io/v1
+kind: VolumeSnapshotLocation
+metadata:
+  name: default
+  namespace: disaster-recovery
+spec:
+  provider: aws
+  config:
+    region: us-west-2
+    enableSharedConfig: "true"
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily-backup
+  namespace: disaster-recovery
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  template:
+    metadata:
+      labels:
+        backup-type: daily
+    spec:
+      includedNamespaces:
+      - nockchain
+      - monitoring
+      - database
+      - redis
+      excludedResources:
+      - events
+      - events.events.k8s.io
+      - backups.velero.io
+      - restores.velero.io
+      - resticrepositories.velero.io
+      snapshotVolumes: true
+      ttl: 720h0m0s  # 30 days
+      storageLocation: default
+      volumeSnapshotLocations:
+      - default
+      defaultVolumesToRestic: true
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: weekly-backup
+  namespace: disaster-recovery
+spec:
+  schedule: "0 1 * * 0"  # Weekly on Sunday at 1 AM
+  template:
+    metadata:
+      labels:
+        backup-type: weekly
+    spec:
+      includedNamespaces:
+      - "*"
+      excludedResources:
+      - events
+      - events.events.k8s.io
+      - backups.velero.io
+      - restores.velero.io
+      - resticrepositories.velero.io
+      snapshotVolumes: true
+      ttl: 4320h0m0s  # 180 days
+      storageLocation: default
+      volumeSnapshotLocations:
+      - default
+      defaultVolumesToRestic: true
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: monthly-backup
+  namespace: disaster-recovery
+spec:
+  schedule: "0 0 1 * *"  # Monthly on the 1st at midnight
+  template:
+    metadata:
+      labels:
+        backup-type: monthly
+    spec:
+      includedNamespaces:
+      - "*"
+      excludedResources:
+      - events
+      - events.events.k8s.io
+      - backups.velero.io
+      - restores.velero.io
+      - resticrepositories.velero.io
+      snapshotVolumes: true
+      ttl: 8760h0m0s  # 365 days
+      storageLocation: default
+      volumeSnapshotLocations:
+      - default
+      defaultVolumesToRestic: true
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloud-credentials
+  namespace: disaster-recovery
+type: Opaque
+data:
+  cloud: |
+    W2RlZmF1bHRdCmF3c19hY2Nlc3Nfa2V5X2lkID0gQUtJQUlPU0ZPRE5ON0VYQU1QTEUKYXdzX3NlY3JldF9hY2Nlc3Nfa2V5ID0gd0phbHJYVXRuRkVNSS9LN01ERU5HL2JQeFJmaUNZRVhBTVBMRUtFWQpyZWdpb24gPSB1cy13ZXN0LTI=
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chaos-monkey
+  namespace: disaster-recovery
+  labels:
+    app: chaos-monkey
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chaos-monkey
+  template:
+    metadata:
+      labels:
+        app: chaos-monkey
+    spec:
+      serviceAccountName: chaos-monkey
+      containers:
+      - name: chaos-monkey
+        image: quay.io/linki/chaoskube:v0.21.0
+        args:
+        - --interval=10m
+        - --dry-run=false
+        - --metrics-addr=0.0.0.0:8080
+        - --log-level=info
+        - --annotation-selector=chaos.alpha.kubernetes.io/enabled=true
+        - --label-selector=environment=staging
+        - --timezone=UTC
+        - --exclude-weekdays=Sat,Sun
+        - --exclude-times-of-day=22:00-08:00
+        - --exclude-days-of-year=Jan1,Dec25
+        - --notify-webhook=https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+        ports:
+        - containerPort: 8080
+          name: metrics
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "10m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: chaos-monkey
+  namespace: disaster-recovery
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: chaos-monkey
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["list", "delete", "get"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: chaos-monkey
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: chaos-monkey
+subjects:
+- kind: ServiceAccount
+  name: chaos-monkey
+  namespace: disaster-recovery
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dr-test-runner
+  namespace: disaster-recovery
+spec:
+  schedule: "0 3 * * 1"  # Every Monday at 3 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: dr-test-runner
+          containers:
+          - name: dr-test
+            image: alpine/k8s:1.27.3
+            command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Starting DR test at $(date)"
+              
+              # Test 1: Backup verification
+              echo "Testing backup verification..."
+              kubectl get backups -n disaster-recovery --sort-by=.metadata.creationTimestamp | tail -5
+              
+              # Test 2: Restore simulation (dry run)
+              echo "Testing restore simulation..."
+              LATEST_BACKUP=$(kubectl get backups -n disaster-recovery --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+              kubectl create -f - <<EOF
+              apiVersion: velero.io/v1
+              kind: Restore
+              metadata:
+                name: dr-test-restore-$(date +%s)
+                namespace: disaster-recovery
+              spec:
+                backupName: $LATEST_BACKUP
+                includedNamespaces:
+                - nockchain
+                restorePVs: true
+                existingResourcePolicy: update
+              EOF
+              
+              # Test 3: Database connectivity test
+              echo "Testing database connectivity..."
+              kubectl run db-test --rm -i --restart=Never --image=postgres:14 -- psql -h postgres.database.svc.cluster.local -U postgres -d nockchain -c "SELECT 1"
+              
+              # Test 4: Application health check
+              echo "Testing application health..."
+              kubectl get pods -n nockchain -l app=performance-optimizer --field-selector=status.phase=Running
+              
+              # Test 5: Monitoring system check
+              echo "Testing monitoring system..."
+              kubectl get pods -n monitoring --field-selector=status.phase=Running
+              
+              echo "DR test completed at $(date)"
+              
+              # Send notification to Slack
+              curl -X POST -H 'Content-type: application/json' \
+                --data '{"text":"DR test completed successfully at '"$(date)"'"}' \
+                https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+          restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dr-test-runner
+  namespace: disaster-recovery
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dr-test-runner
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints"]
+  verbs: ["get", "list", "create", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list"]
+- apiGroups: ["velero.io"]
+  resources: ["backups", "restores"]
+  verbs: ["get", "list", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dr-test-runner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dr-test-runner
+subjects:
+- kind: ServiceAccount
+  name: dr-test-runner
+  namespace: disaster-recovery

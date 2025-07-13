@@ -1,0 +1,12 @@
+# Kubernetes namespace for Nockchain mining pool
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nockchain
+  labels:
+    name: nockchain
+    app: mining-pool
+    version: v1.0.0
+  annotations:
+    description: "Nockchain mining pool infrastructure"

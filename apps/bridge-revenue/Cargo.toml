@@ -1,0 +1,83 @@
+[package]
+name = "bridge-revenue"
+version = "1.0.0"
+edition = "2021"
+authors = ["Nockchain Team <dev@nockchain.com>"]
+description = "Bridge Revenue System - $645K Monthly Cross-Chain Fee Collection"
+
+[lib]
+name = "bridge_revenue"
+path = "src/lib.rs"
+
+[[bin]]
+name = "bridge-server"
+path = "src/main.rs"
+
+[dependencies]
+# Core async runtime
+tokio = { version = "1.0", features = ["full"] }
+tokio-util = "0.7"
+
+# Web framework
+axum = { version = "0.7", features = ["macros", "headers"] }
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "compression-gzip"] }
+hyper = { version = "1.0", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json", "bigdecimal"] }
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
+
+# Data types
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+rust_decimal = { version = "1.33", features = ["serde-with-str"] }
+
+# Blockchain integration
+solana-sdk = "1.17"
+solana-client = "1.17"
+spl-token = "4.0"
+
+# WebSocket for real-time updates
+tungstenite = "0.20"
+tokio-tungstenite = "0.20"
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+
+# Configuration
+config = "0.14"
+dotenvy = "0.15"
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Metrics
+prometheus = "0.13"
+metrics = "0.22"
+
+# Cryptography
+ring = "0.17"
+hex = "0.4"
+
+# Rate limiting
+governor = "0.6"
+
+# Background jobs
+tokio-cron-scheduler = "0.9"
+
+# Math and calculations
+bigdecimal = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+wiremock = "0.5"

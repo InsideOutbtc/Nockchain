@@ -1,0 +1,91 @@
+[package]
+name = "nockchain-mining-pool"
+version = "1.0.0"
+edition = "2021"
+description = "Enterprise-grade mining pool engine for Nockchain"
+authors = ["Nockchain Platform <dev@nockchain.platform>"]
+license = "MIT"
+repository = "https://github.com/nockchain/platform"
+
+[dependencies]
+# Async runtime and networking
+tokio = { version = "1.35", features = ["full"] }
+tokio-util = { version = "0.7", features = ["full"] }
+futures = "0.3"
+
+# Web framework and HTTP
+axum = { version = "0.7", features = ["ws", "headers", "multipart"] }
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "compression"] }
+hyper = { version = "1.0", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = "1.3"
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "decimal", "json"] }
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
+
+# Cryptography and hashing
+sha2 = "0.10"
+blake3 = "1.5"
+hex = "0.4"
+ring = "0.17"
+ed25519-dalek = "2.0"
+
+# Time and UUID
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# Logging and metrics
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+metrics = "0.22"
+metrics-exporter-prometheus = "0.13"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Configuration
+config = "0.14"
+dotenvy = "0.15"
+
+# Networking utilities
+socket2 = "0.5"
+trust-dns-resolver = "0.23"
+
+# Concurrency
+dashmap = "5.5"
+parking_lot = "0.12"
+crossbeam = "0.8"
+
+# Performance
+rayon = "1.8"
+mimalloc = { version = "0.1", default-features = false }
+
+# Development dependencies
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.4"
+tokio-test = "0.4"
+
+# Optimization profiles
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+opt-level = 1
+
+[[bin]]
+name = "mining-pool"
+path = "src/main.rs"
+
+[[bench]]
+name = "share_processing"
+harness = false

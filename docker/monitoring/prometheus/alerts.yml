@@ -1,0 +1,254 @@
+# Prometheus alerting rules for Nockchain mining pool
+
+groups:
+  - name: mining_pool_alerts
+    rules:
+      # Critical: Pool is down or unreachable
+      - alert: MiningPoolDown
+        expr: up{job="mining-pool-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: mining_pool
+        annotations:
+          summary: "Mining pool API is down"
+          description: "The mining pool API has been unreachable for more than 1 minute."
+
+      # Critical: No active miners
+      - alert: NoActiveMiners
+        expr: nockchain_active_miners_total == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: mining_pool
+        annotations:
+          summary: "No active miners connected"
+          description: "No miners have been active for the last 5 minutes."
+
+      # Warning: Low hashrate
+      - alert: LowPoolHashrate
+        expr: nockchain_pool_hashrate_total < 1000000
+        for: 10m
+        labels:
+          severity: warning
+          service: mining_pool
+        annotations:
+          summary: "Pool hashrate is low"
+          description: "Pool hashrate has been below 1 MH/s for 10 minutes. Current: {{ $value | humanize }}H/s"
+
+      # Warning: Pool efficiency below threshold
+      - alert: LowPoolEfficiency
+        expr: nockchain_pool_efficiency_percentage < 90
+        for: 15m
+        labels:
+          severity: warning
+          service: mining_pool
+        annotations:
+          summary: "Pool efficiency is low"
+          description: "Pool efficiency has been below 90% for 15 minutes. Current: {{ $value }}%"
+
+      # Critical: High share rejection rate
+      - alert: HighShareRejectionRate
+        expr: rate(nockchain_errors_total{error_type="invalid_share"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          service: mining_pool
+        annotations:
+          summary: "High share rejection rate detected"
+          description: "Share rejection rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+
+      # Warning: Mining pool response time high
+      - alert: HighMiningPoolResponseTime
+        expr: histogram_quantile(0.95, rate(nockchain_http_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: mining_pool
+        annotations:
+          summary: "High response time for mining pool API"
+          description: "95th percentile response time is {{ $value }}s for the last 5 minutes."
+
+  - name: system_alerts
+    rules:
+      # Critical: High CPU usage
+      - alert: HighCPUUsage
+        expr: system:cpu_usage_avg5m > 90
+        for: 5m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage has been above 90% for 5 minutes. Current: {{ $value }}%"
+
+      # Warning: Moderate CPU usage
+      - alert: ModerateCPUUsage
+        expr: system:cpu_usage_avg5m > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "Moderate CPU usage"
+          description: "CPU usage has been above 80% for 10 minutes. Current: {{ $value }}%"
+
+      # Critical: High memory usage
+      - alert: HighMemoryUsage
+        expr: system:memory_usage_percent > 90
+        for: 5m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage has been above 90% for 5 minutes. Current: {{ $value }}%"
+
+      # Warning: Moderate memory usage
+      - alert: ModerateMemoryUsage
+        expr: system:memory_usage_percent > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "Moderate memory usage"
+          description: "Memory usage has been above 80% for 10 minutes. Current: {{ $value }}%"
+
+      # Critical: Disk space almost full
+      - alert: DiskSpaceAlmostFull
+        expr: system:disk_usage_percent > 90
+        for: 1m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "Disk space almost full"
+          description: "Disk usage is above 90%. Current: {{ $value }}%"
+
+      # Warning: Disk space getting full
+      - alert: DiskSpaceGettingFull
+        expr: system:disk_usage_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "Disk space getting full"
+          description: "Disk usage is above 80%. Current: {{ $value }}%"
+
+  - name: application_alerts
+    rules:
+      # Critical: High error rate
+      - alert: HighErrorRate
+        expr: rate(nockchain_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          service: application
+        annotations:
+          summary: "High application error rate"
+          description: "Error rate is {{ $value }} errors/second over the last 5 minutes."
+
+      # Warning: Increased error rate
+      - alert: IncreasedErrorRate
+        expr: rate(nockchain_errors_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "Increased application error rate"
+          description: "Error rate is {{ $value }} errors/second over the last 5 minutes."
+
+      # Critical: Service unavailable
+      - alert: ServiceUnavailable
+        expr: up{job="nockchain-monitoring"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: monitoring
+        annotations:
+          summary: "Monitoring service is down"
+          description: "The monitoring service has been unavailable for more than 1 minute."
+
+      # Warning: High request rate
+      - alert: HighRequestRate
+        expr: rate(nockchain_http_requests_total[5m]) > 100
+        for: 10m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "High request rate detected"
+          description: "Request rate is {{ $value }} requests/second over the last 5 minutes."
+
+  - name: business_alerts
+    rules:
+      # Critical: No blocks found in extended period
+      - alert: NoBlocksFoundLongPeriod
+        expr: increase(nockchain_blocks_found_total[24h]) == 0
+        for: 1h
+        labels:
+          severity: critical
+          service: business
+        annotations:
+          summary: "No blocks found in 24 hours"
+          description: "No blocks have been found by the pool in the last 24 hours."
+
+      # Warning: Low block finding rate
+      - alert: LowBlockFindingRate
+        expr: rate(nockchain_blocks_found_total[6h]) < 0.0001
+        for: 2h
+        labels:
+          severity: warning
+          service: business
+        annotations:
+          summary: "Low block finding rate"
+          description: "Block finding rate is lower than expected over the last 6 hours."
+
+      # Critical: Payout system failure
+      - alert: PayoutSystemFailure
+        expr: rate(nockchain_errors_total{service="payout_engine"}[10m]) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+          service: business
+        annotations:
+          summary: "Payout system experiencing errors"
+          description: "The payout system has error rate of {{ $value }} over the last 10 minutes."
+
+  - name: infrastructure_alerts
+    rules:
+      # Critical: Redis connection issues
+      - alert: RedisConnectionFailure
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Redis connection failure"
+          description: "Cannot connect to Redis for more than 1 minute."
+
+      # Critical: Database connection issues
+      - alert: DatabaseConnectionFailure
+        expr: nockchain_system_database_connections == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Database connection failure"
+          description: "No active database connections detected for 2 minutes."
+
+      # Warning: High network traffic
+      - alert: HighNetworkTraffic
+        expr: rate(node_network_receive_bytes_total[5m]) > 100000000 or rate(node_network_transmit_bytes_total[5m]) > 100000000
+        for: 10m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High network traffic detected"
+          description: "Network traffic is unusually high. Receive: {{ $value }} bytes/sec"

@@ -1,0 +1,192 @@
+# Rust mining pool engine deployment for Nockchain
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nockchain-mining-pool
+  namespace: nockchain
+  labels:
+    app: nockchain-mining-pool
+    component: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nockchain-mining-pool
+  template:
+    metadata:
+      labels:
+        app: nockchain-mining-pool
+        component: backend
+    spec:
+      imagePullSecrets:
+        - name: registry-secret
+      containers:
+        - name: mining-pool
+          image: ghcr.io/nockchain/mining-pool:latest-mining-pool
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 8081
+              name: stratum
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: RUST_LOG
+              value: "info"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: nockchain-secrets
+                  key: DATABASE_URL
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: nockchain-secrets
+                  key: REDIS_URL
+            - name: POOL_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: nockchain-config
+                  key: POOL_NAME
+            - name: POOL_FEE
+              valueFrom:
+                configMapKeyRef:
+                  name: nockchain-config
+                  key: POOL_FEE
+            - name: BLOCKCHAIN_RPC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: nockchain-config
+                  key: BLOCKCHAIN_RPC_URL
+            - name: BLOCKCHAIN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: nockchain-secrets
+                  key: BLOCKCHAIN_API_KEY
+            - name: PAYOUT_SCHEME
+              valueFrom:
+                configMapKeyRef:
+                  name: nockchain-config
+                  key: PAYOUT_SCHEME
+            - name: MINIMUM_PAYOUT
+              valueFrom:
+                configMapKeyRef:
+                  name: nockchain-config
+                  key: MINIMUM_PAYOUT
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nockchain-mining-pool-service
+  namespace: nockchain
+  labels:
+    app: nockchain-mining-pool
+    component: backend
+spec:
+  selector:
+    app: nockchain-mining-pool
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+    - port: 8081
+      targetPort: 8081
+      protocol: TCP
+      name: stratum
+    - port: 9090
+      targetPort: 9090
+      protocol: TCP
+      name: metrics
+  type: ClusterIP
+
+---
+# Stratum service for miners (LoadBalancer for external access)
+apiVersion: v1
+kind: Service
+metadata:
+  name: nockchain-stratum-service
+  namespace: nockchain
+  labels:
+    app: nockchain-mining-pool
+    component: stratum
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+spec:
+  selector:
+    app: nockchain-mining-pool
+  ports:
+    - port: 4444
+      targetPort: 8081
+      protocol: TCP
+      name: stratum
+  type: LoadBalancer
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nockchain-mining-pool-hpa
+  namespace: nockchain
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nockchain-mining-pool
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 85
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: nockchain-mining-pool-pdb
+  namespace: nockchain
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: nockchain-mining-pool

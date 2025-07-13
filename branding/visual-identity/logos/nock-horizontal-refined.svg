@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="400" height="80" viewBox="0 0 400 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Professional Brand Gradient -->
+    <linearGradient id="horizontalBrandGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+      <stop offset="60%" style="stop-color:#cacaca;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00ff88;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Tagline Gradient -->
+    <linearGradient id="taglineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#cacaca;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6a6a6a;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Refined Glow -->
+    <filter id="horizontalGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Main Brand "Nock=" -->
+  <text x="60" y="45" font-family="JetBrains Mono, monospace" font-size="28" font-weight="700" 
+        fill="url(#horizontalBrandGradient)" filter="url(#horizontalGlow)"
+        letter-spacing="-0.02em">Nock=</text>
+  
+  <!-- Professional Separator -->
+  <line x1="150" y1="25" x2="150" y2="55" stroke="rgba(0,255,136,0.3)" stroke-width="2" opacity="0.6"/>
+  
+  <!-- Tagline "PRECISION MINING TO DeFi" -->
+  <text x="170" y="45" font-family="JetBrains Mono, monospace" font-size="12" font-weight="500" 
+        fill="url(#taglineGradient)" letter-spacing="0.1em" text-transform="uppercase">PRECISION MINING TO DeFi</text>
+  
+  <!-- Mathematical Precision Indicators -->
+  <g transform="translate(370, 40)">
+    <circle cx="0" cy="0" r="2" fill="#00ff88" opacity="0.6"/>
+    <circle cx="8" cy="0" r="1.5" fill="#00ff88" opacity="0.4"/>
+    <circle cx="16" cy="0" r="1" fill="#00ff88" opacity="0.2"/>
+  </g>
+  
+  <!-- Professional Baseline -->
+  <line x1="20" y1="65" x2="380" y2="65" stroke="rgba(0,255,136,0.2)" stroke-width="1" opacity="0.4"/>
+</svg>
