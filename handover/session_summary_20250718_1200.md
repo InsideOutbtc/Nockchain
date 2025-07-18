@@ -82,7 +82,7 @@ Execute autonomous fixes for dependency resolution and build system setup with M
 ### **QUICK VERIFICATION SEQUENCE**
 ```bash
 # 1. Navigate to project directory
-cd /Users/Patrick/Documents/Nockchain
+cd /Users/Patrick/nock=
 
 # 2. Verify installation
 npm list --depth=0
@@ -190,7 +190,7 @@ git commit -m "feat: dependency resolution and build system setup"
 
 ### **Monorepo Structure Verified**
 ```
-/Users/Patrick/Documents/Nockchain/
+/Users/Patrick/nock=/
 ├── package.json ✅               # Root workspace coordinator
 ├── turbo.json ✅                 # Build orchestration
 ├── apps/ ✅                      # 11 applications
