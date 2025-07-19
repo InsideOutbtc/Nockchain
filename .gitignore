@@ -238,3 +238,13 @@ profiling/
 # Communication Logs
 communication-logs/
 chat-history/
+# Security files (added by pipeline fix)
+security/**/*.key
+security/**/*.pem
+security/**/master.key
+security/**/ca-key.pem
+*.env.local
+*.env.production
+**/*.log
+node_modules/
+.DS_Store
